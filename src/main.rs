@@ -1,7 +1,6 @@
 use std::env;
 
-mod tcp_client;
-use crate::tcp_client::NetworkClient;
+mod asdc;
 
 
 fn main() {
@@ -11,28 +10,32 @@ fn main() {
         return;
     }
 
-    let ip_address: String = String::from(&args[1]);
-    let message_type: u16 = args[2].parse().unwrap();
+    let arg_ip_address: String = String::from(&args[1]);
+    let arg_message_type: u16 = args[2].parse().unwrap();
 
-    if message_type != 1 || message_type != 2 {
-        println!("Invalid message type");
-        return;
-    }
+    let message_type: asdc::MessageType = asdc::int_to_message_type(arg_message_type).unwrap();
 
-    let mut network_client = NetworkClient::new();
+    let mut network_client = asdc::NetworkClient::new();
 
-    match network_client.connect(&ip_address) {
-        Ok(_) => {},
-        Err(e) => panic!("error connecting to host: {e}")
-    };
+    network_client.connect(&arg_ip_address).unwrap();
+    network_client.request_message(message_type).unwrap();
+    let messages: Vec<asdc::ProtoMessage> = network_client.read_messages().unwrap();
 
-    match network_client.write_packet(message_type, vec![]) {
-        Ok(_) => {},
-        Err(e) => panic!("error writing packet: {e}")
-    }
-
-    match network_client.read_packets() {
-        Ok(_) => {},
-        Err(e) => panic!("error reading packets: {e}")
+    for msg in messages {
+        match msg {
+            asdc::ProtoMessage::Live(m) => println!("{m:?}"),
+            asdc::ProtoMessage::Command(m) => println!("{m:?}"),
+            asdc::ProtoMessage::Settings(m) => println!("{m:?}"),
+            asdc::ProtoMessage::Configuration(m) => println!("{m:?}"),
+            asdc::ProtoMessage::Peak(m) => println!("{m:?}"),
+            asdc::ProtoMessage::Clock(m) => println!("{m:?}"),
+            asdc::ProtoMessage::Information(m) => println!("{m:?}"),
+            asdc::ProtoMessage::Error(m) => println!("{m:?}"),
+            asdc::ProtoMessage::Router(m) => println!("{m:?}"),
+            asdc::ProtoMessage::Filter(m) => println!("{m:?}"),
+            asdc::ProtoMessage::Peripheral(m) => println!("{m:?}"),
+            asdc::ProtoMessage::OnzenLive(m) => println!("{m:?}"),
+            asdc::ProtoMessage::OnzenSettings(m) => println!("{m:?}")
+        }
     }
 }
