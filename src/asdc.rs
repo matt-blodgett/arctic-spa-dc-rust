@@ -390,7 +390,8 @@ impl NetworkClient {
         while current_attempt < max_attempts {
             let packets = self.read_packets()?;
             for packet in packets {
-                if packet.message_type_value == message_type.into() {
+                // if packet.message_type_value == message_type.into() {
+                if packet.message_type_value == <MessageType as Into<u16>>::into(message_type) {
                     let message = ProtoMessage::try_from(&packet)?;
                     return Ok(message);
                 }
