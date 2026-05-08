@@ -1,4 +1,8 @@
-use std::io::Error;
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
+
+use std::{fmt::Debug, io::Error};
 
 use crate::asdc;
 
@@ -11,7 +15,7 @@ pub fn get_message(ip_address: &str, message_type: asdc::MessageType) -> Result<
     Ok(message)
 }
 
-pub fn display_message(message: asdc::ProtoMessage) -> () {
+pub fn display_message(message_type: asdc::MessageType, message: asdc::ProtoMessage) -> () {
     log::info!("outputting message data");
 
     // let output_string = match message {
@@ -44,5 +48,11 @@ pub fn display_message(message: asdc::ProtoMessage) -> () {
         asdc::ProtoMessage::OnzenLive(msg) => protobuf::text_format::print_to_string_pretty(&msg),
         asdc::ProtoMessage::OnzenSettings(msg) => protobuf::text_format::print_to_string_pretty(&msg),
     };
-    println!("{:#?}", output_string);
+
+    println!("Message data for \"{:#?}\"", message_type);
+    for line in output_string.split('\n') {
+        if !line.is_empty() {
+            println!("{}", line);
+        }
+    }
 }
