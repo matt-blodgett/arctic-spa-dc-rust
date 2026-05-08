@@ -1,17 +1,26 @@
 #![allow(dead_code)]
+#![allow(unused_imports)]
 
 
 use std::fs;
 use std::path::PathBuf;
 use serde_json::{json, Value};
+use serde::{Deserialize, Serialize};
 
 
-pub struct Config {
-    data: Value,
-    path: Option<PathBuf>,
+#[derive(Serialize, Deserialize, Debug)]
+pub struct AppConfig {
+    pub ip_address: String,
+    pub verbosity: Option<u8>
 }
 
-impl Config {
+
+pub struct AppConfigManager {
+    pub data: AppConfig,
+    path: PathBuf,
+}
+
+impl AppConfigManager {
     /// get the default config directory for this application
     fn default_config_dir() -> PathBuf {
         if let Some(proj_dirs) = directories::ProjectDirs::from("", "", "arctic-spa-dc-rust") {
@@ -41,27 +50,42 @@ impl Config {
         // if config file doesn't exist, create it from template
         if !config_path.exists() {
             log::debug!("config file not found at {:#?}, creating from template", config_path.display());
-            let template_config = json!({
-                "ip_address": "",
-                "verbosity": 5
-            });
-            let config_content = serde_json::to_string_pretty(&template_config)?;
-            fs::write(&config_path, config_content)?;
+            // let template_config = json!({
+            //     "ip_address": "",
+            //     "verbosity": 5
+            // });
+            let template_config_str = r#"
+                {
+                    "ip_address": "192.168.0.1",
+                    "verbosity": 5
+                }
+            "#;
+            let mut template_config: AppConfig = serde_json::from_str(template_config_str).unwrap();
+
+            template_config.ip_address = "192.168.0.1".to_string();
+
+            let file = std::fs::File::create(&config_path)?;
+            serde_json::to_writer_pretty(file, &template_config)?;
+
+            // let config_content = serde_json::to_string_pretty(&template_config)?;
+            // fs::write(&config_path, config_content)?;
             log::info!("created config file {:#?}", config_path.display());
             return Ok(Self {
                 data: template_config,
-                path: Some(config_path),
+                path: config_path,
             });
         }
 
         // load existing config file
         log::debug!("loading config from {:#?}", config_path.display());
         let config_content = fs::read_to_string(&config_path)?;
-        let data: Value = serde_json::from_str(&config_content)?;
+
+        let data: AppConfig = serde_json::from_str(&config_content).unwrap();
+
         log::info!("config loaded successfully from {:#?}", config_path.display());
         Ok(Self {
             data,
-            path: Some(config_path),
+            path: config_path,
         })
     }
 
@@ -69,42 +93,46 @@ impl Config {
     pub fn load_from_path(config_path: &PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
         log::debug!("loading config from custom location {:#?}", config_path.display());
         let config_content = fs::read_to_string(&config_path)?;
-        let data: Value = serde_json::from_str(&config_content)?;
+        let data: AppConfig = serde_json::from_str(&config_content).unwrap();
         log::info!("config loaded sucessfully from {:#?}", config_path.display());
         Ok(Self {
             data,
-            path: Some(config_path.to_path_buf()),
+            path: config_path.to_path_buf(),
         })
     }
 
-    /// get a string value from the config
-    pub fn get_string(&self, key: &str) -> Option<String> {
-        let value = self.data.get(key)?.as_str().map(|s| s.to_string());
-        log::trace!("config get_string -> {} = {:?}", key, value);
-        return value;
+    pub fn save(&self) -> Result<(), std::io::Error> {
+        let file = std::fs::File::create(&self.path)?;
+        // let file = std::fs::File::create("output.json")?;
+        serde_json::to_writer_pretty(file, &self.data)?;
+        Ok(())
     }
 
-    /// get an integer value from the config
-    pub fn get_int(&self, key: &str) -> Option<i64> {
-        let value = self.data.get(key)?.as_i64();
-        log::trace!("config get_int -> {} = {:?}", key, value);
-        return value;
+    pub fn get_value(&self, key: &str) -> Result<Value, serde_json::Error> {
+        let app_config_json = serde_json::to_value(&self.data)?;
+        let value = serde_json::to_value(app_config_json[key].clone())?;
+        log::trace!("config get_value -> {:?} = {:?}", key, value);
+        Ok(value)
     }
 
-    /// set a value in the config and save it to disk
-    pub fn set_value(&mut self, key: &str, value: &str) -> Result<(), Box<dyn std::error::Error>> {
-        // try to parse as integer, otherwise store as string
-        if let Ok(int_val) = value.parse::<i64>() {
-            self.data[key] = json!(int_val);
-        } else {
-            self.data[key] = json!(value);
+    pub fn set_value(&mut self, key: &str, value: &String) -> Result<(), Box<dyn std::error::Error>> {
+        let mut app_config_json = serde_json::to_value(&self.data)?;
+
+        if app_config_json[key].is_string() {
+            app_config_json[key] = serde_json::Value::String(value.clone());
+        } else if app_config_json[key].is_number() {
+            app_config_json[key] = serde_json::Value::Number(value.parse()?);
         }
 
-        // Save to the path where this config was loaded from (or default if created new)
-        let save_path = self.path.as_ref().unwrap_or(&Self::default_config_path()).clone();
-        let config_content = serde_json::to_string_pretty(&self.data)?;
-        fs::write(&save_path, config_content)?;
-        log::trace!("config set_value -> {} = {}", key, value);
+        self.data = serde_json::from_value(app_config_json)?;
+        self.save()?;
+
+        log::trace!("config set_value -> {:?} = {:?}", key, value);
+
         Ok(())
+    }
+
+    pub fn to_string_pretty(&self) -> Result<String, serde_json::Error> {
+        Ok(serde_json::to_string_pretty(&self.data)?)
     }
 }

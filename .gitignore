@@ -1,6 +1,9 @@
 # editor files
 .vscode
 
+# dev files
+.dev
+
 # build artifacts
 /target
 /src/proto

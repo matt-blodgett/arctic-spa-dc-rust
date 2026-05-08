@@ -1,10 +1,14 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
+
 use std::io::Write;
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 
-use crate::config::Config;
 
+use crate::config::AppConfigManager;
 
 mod proto;
 mod asdc;
@@ -81,6 +85,10 @@ enum ConfigCommands {
         /// Config value to set
         value: String,
     },
+    /// Display all config key value pairs
+    Dump {
+
+    }
 }
 
 // #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
@@ -209,19 +217,19 @@ fn main () {
 
     let mut logging_initialized = false;
 
-    // check for cli arg for verbosity to take precedence
+    // check cli args for verbosity (takes precedence over config file / env vars)
     if let Some(verbosity) = cli.verbosity {
         init_logging(verbosity);
         logging_initialized = true;
         log::debug!("logging initialized to level {}", log::max_level());
     }
 
-    log::info!("initializing configs");
+    log::info!("initializing config");
 
     // check if config file location is specified explicitly in cli args
     let mut config = if let Some(path) = cli.config_path.as_ref() {
         log::debug!("config_path: {}", path.display());
-        match Config::load_from_path(path) {
+        match AppConfigManager::load_from_path(path) {
             Ok(c) => c,
             Err(e) => {
                 eprintln!("failed to load config: {}", e);
@@ -229,7 +237,7 @@ fn main () {
             }
         }
     } else {
-        match Config::load_or_create() {
+        match AppConfigManager::load_or_create() {
             Ok(c) => c,
             Err(e) => {
                 eprintln!("failed to load config: {}", e);
@@ -238,14 +246,10 @@ fn main () {
         }
     };
 
-    // if cli arg for verbosity not present, logging is not started so check config file, or use default
+    // if cli arg for verbosity is not present, logging is not initialized
+    // check config file or use default value
     if !logging_initialized {
-        let verbosity = if let Some(config_verbosity) = config.get_int("verbosity") {
-            config_verbosity as u8
-        } else {
-            DEFAULT_LOGGING_LEVEL
-        };
-
+        let verbosity = config.data.verbosity.unwrap_or_else(|| DEFAULT_LOGGING_LEVEL);
         init_logging(verbosity);
         log::debug!("logging initialized to level {}", log::max_level());
     }
@@ -254,7 +258,7 @@ fn main () {
 
     // get ip address first from cli, then check config file
     let ip_address = cli.ip_address.unwrap_or_else(|| {
-        config.get_string("ip_address").unwrap_or_default()
+        config.data.ip_address.to_string()
     });
 
     log::info!("running command: {:?}", cli.command);
@@ -262,6 +266,7 @@ fn main () {
     match &cli.command {
         Commands::Get { message_name, output_path } => {
             log::debug!("message_name: {:?}", message_name);
+            // TODO: actually use or remove
             log::debug!("output_path: {:?}", output_path);
 
             if ip_address.is_empty() {
@@ -327,25 +332,37 @@ fn main () {
             match command {
                 ConfigCommands::Get { key } => {
                     let key_str = key.as_str();
-                    match config.get_string(key_str) {
-                        Some(value) => println!("config value: {} = {:#?}", key_str, value),
-                        None => {
-                            log::warn!("config key not found: {}", key_str);
-                            println!("config key not found: {}", key_str);
+
+                    match config.get_value(key_str) {
+                        Ok(value) => println!("config value: {:?} = {:?}", key_str, value),
+                        Err(e) => {
+                            if log::log_enabled!(log::Level::Error) {
+                                log::error!("failed to get config: {:?}", e);
+                            } else {
+                                eprintln!("failed to get config: {:?}", e);
+                            }
                         }
                     }
                 },
                 ConfigCommands::Set { key, value } => {
                     let key_str = key.as_str();
+
                     match config.set_value(key_str, value) {
-                        Ok(_) => println!("config value set: {} = {}", key_str, value),
+                        Ok(_) => println!("config value set: {:?} = {:?}", key_str, value),
                         Err(e) => {
-                            log::error!("failed to set config: {}", e);
-                            println!("failed to set config: {}", e);
+                            if log::log_enabled!(log::Level::Error) {
+                                log::error!("failed to set config: {:?}", e);
+                            } else {
+                                eprintln!("failed to set config: {:?}", e);
+                            }
                             std::process::exit(1);
                         }
                     }
                 },
+                ConfigCommands::Dump {  } => {
+                    println!("displaying all config key-value pairs");
+                    println!("{}", config.to_string_pretty().unwrap());
+                }
             }
         },
     }
