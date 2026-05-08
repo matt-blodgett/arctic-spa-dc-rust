@@ -50,12 +50,12 @@ enum Commands {
         #[arg(short, long, value_name = "OUTPUT_FILE_PATH")]
         output_path: Option<PathBuf>,
     },
-    /// Send an update command to the host
+    /// Send an update command request to the host
     Set {
         /// Property to set
         property_name: String,
     },
-    /// Store and retrieve this applications settings
+    /// Store and retrieve commonly used command-line arguments
     Config {
         #[command(subcommand)]
         command: ConfigCommands,
@@ -232,6 +232,7 @@ fn main () {
 
     match &cli.command {
         Commands::Get { message_name, output_path } => {
+            log::debug!("message_name: {:?}", message_name);
             log::debug!("output_path: {:?}", output_path);
 
             if ip_address.is_empty() {
@@ -239,14 +240,52 @@ fn main () {
                 std::process::exit(1);
             }
             let message_type: asdc::MessageType = (*message_name).into();
-            let message = match cmds::get_message(&ip_address, message_type) {
-                Ok(m) => m,
-                Err(e) => {
-                    log::error!("command execution failed: {:#?}", e);
-                    std::process::exit(1);
-                }
-            };
-            cmds::display_message(message);
+            // let message = match cmds::get_message(&ip_address, message_type) {
+            //     Ok(m) => m,
+            //     Err(e) => {
+            //         log::error!("command execution failed: {:#?}", e);
+            //         std::process::exit(1);
+            //     }
+            // };
+            // cmds::display_message(message_type, message);
+
+            let mut msg = proto::Live::Live::new();
+            msg.set_temperature_fahrenheit(104);
+            msg.set_alarm(24);
+            msg.set_all_on(false);
+            msg.set_blower_1(proto::Live::live::PumpStatus::PUMP_OFF);
+            msg.set_blower_2(proto::Live::live::PumpStatus::PUMP_OFF);
+            msg.set_current_adc(0);
+            msg.set_economy(false);
+            msg.set_error(0);
+            msg.set_exhaust_fan(false);
+            msg.set_filter(proto::Live::live::FilterStatus::FILTER_IDLE);
+            msg.set_fogger(false);
+            msg.set_heater_1(proto::Live::live::HeaterStatus::HEATER_HEATING);
+            msg.set_heater_2(proto::Live::live::HeaterStatus::HEATER_IDLE);
+            msg.set_heater_adc(20);
+            msg.set_lights(false);
+            msg.set_onzen(true);
+            msg.set_orp(650);
+            msg.set_ozone(proto::Live::live::OzoneStatus::OZONE_ACTIVE);
+            msg.set_ph(712);
+            msg.set_pump_1(proto::Live::live::PumpStatus::PUMP_LOW);
+            msg.set_pump_2(proto::Live::live::PumpStatus::PUMP_HIGH);
+            msg.set_pump_3(proto::Live::live::PumpStatus::PUMP_OFF);
+            msg.set_pump_4(proto::Live::live::PumpStatus::PUMP_OFF);
+            msg.set_pump_5(proto::Live::live::PumpStatus::PUMP_OFF);
+            msg.set_sauna(proto::Live::live::SaunaStatus::SAUNA_NORMAL);
+            msg.set_sauna_time_remaining(0);
+            msg.set_sds(false);
+            msg.set_status(67);
+            msg.set_stereo(false);
+            msg.set_temperature_fahrenheit(102);
+            msg.set_temperature_setpoint_fahrenheit(104);
+            msg.set_yess(false);
+
+            let msg_wrapped = asdc::ProtoMessage::Live(msg);
+
+            cmds::display_message(message_type, msg_wrapped);
         },
         Commands::Set { property_name } => {
             if ip_address.is_empty() {
