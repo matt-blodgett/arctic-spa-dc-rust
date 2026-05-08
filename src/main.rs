@@ -54,11 +54,6 @@ enum Commands {
     Set {
         /// Property to set
         property_name: String,
-<<<<<<< Updated upstream
-    }
-}
-
-=======
     },
     /// Store and retrieve this applications settings
     Config {
@@ -105,7 +100,6 @@ impl ConfigKey {
     }
 }
 
->>>>>>> Stashed changes
 
 // #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 #[derive(Copy, Clone, ValueEnum, Debug)]
@@ -261,8 +255,6 @@ fn main () {
             }
             println!("set property: {:?}", property_name);
         },
-<<<<<<< Updated upstream
-=======
         Commands::Config { command } => {
             match command {
                 ConfigCommands::Get { key } => {
@@ -288,6 +280,5 @@ fn main () {
                 },
             }
         },
->>>>>>> Stashed changes
     }
 }
