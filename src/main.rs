@@ -3,6 +3,8 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 
+use crate::config::Config;
+
 
 mod proto;
 mod asdc;
@@ -10,7 +12,7 @@ mod cmds;
 mod config;
 
 
-const DEFAULT_LOGGING_LEVEL: u8 = 5;
+const DEFAULT_LOGGING_LEVEL: u8 = 0;
 
 
 #[derive(Parser)]
@@ -18,7 +20,7 @@ const DEFAULT_LOGGING_LEVEL: u8 = 5;
 #[command(version = "0.1.0")]
 #[command(about = "Interact with your Arctic Spa brand hot tub", long_about = None)]
 struct Cli {
-    /// Load flags from a config file
+    /// Load settings from a specific config file
     #[arg(short, long, value_name = "FILE_PATH")]
     config_path: Option<PathBuf>,
 
@@ -27,8 +29,8 @@ struct Cli {
     ip_address: Option<String>,
 
     /// Logging level: 0=OFF, 1=ERROR, 2=WARN, 3=INFO, 4=DEBUG, 5=ALL
-    #[arg(short, long, value_name = "LOGGING_LEVEL", default_value_t = DEFAULT_LOGGING_LEVEL)]
-    verbosity: u8,
+    #[arg(short, long, value_name = "LOGGING_LEVEL")]
+    verbosity: Option<u8>,
 
     // /// Dry run
     // #[arg(short, long)]
@@ -55,7 +57,7 @@ enum Commands {
         /// Property to set
         property_name: String,
     },
-    /// Store and retrieve commonly used command-line arguments
+    /// Store and retrieve application settings
     Config {
         #[command(subcommand)]
         command: ConfigCommands,
@@ -64,15 +66,15 @@ enum Commands {
 
 #[derive(Subcommand, Debug)]
 enum ConfigCommands {
-    /// Get a config value
+    /// Display a config value
     Get {
-        /// Config key to retrieve
+        /// Config key to display
         #[arg(value_enum)]
         key: ConfigKey,
     },
     /// Set a config value
     Set {
-        /// Config key to retrieve
+        /// Config key to update
         #[arg(value_enum)]
         key: ConfigKey,
 
@@ -85,7 +87,7 @@ enum ConfigCommands {
 #[derive(Copy, Clone, ValueEnum, Debug)]
 enum ConfigKey {
     /// IP Address
-    #[value(name = "ip-address")]
+    #[value(name = "ip_address")]
     IpAddress,
     /// Verbosity
     Verbosity
@@ -205,28 +207,55 @@ fn init_logging(logging_level: u8) -> () {
 fn main () {
     let cli = Cli::parse();
 
-    init_logging(cli.verbosity);
+    let mut logging_initialized = false;
 
-    log::info!("initializing app");
-    log::debug!("initialized logging handler with level {}", log::max_level());
+    // check for cli arg for verbosity to take precedence
+    if let Some(verbosity) = cli.verbosity {
+        init_logging(verbosity);
+        logging_initialized = true;
+        log::debug!("logging initialized to level {}", log::max_level());
+    }
 
-    // Load config from OS config directory
-    let cfg = match config::load_or_create_config() {
-        Ok(c) => c,
-        Err(e) => {
-            log::error!("failed to load config: {}", e);
-            std::process::exit(1);
+    log::info!("initializing configs");
+
+    // check if config file location is specified explicitly in cli args
+    let mut config = if let Some(path) = cli.config_path.as_ref() {
+        log::debug!("config_path: {}", path.display());
+        match Config::load_from_path(path) {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("failed to load config: {}", e);
+                std::process::exit(1);
+            }
+        }
+    } else {
+        match Config::load_or_create() {
+            Ok(c) => c,
+            Err(e) => {
+                eprintln!("failed to load config: {}", e);
+                std::process::exit(1);
+            }
         }
     };
 
-    let ip_address = cli.ip_address.unwrap_or_else(|| {
-        config::get_string(&cfg, "ip-address").unwrap_or_default()
-    });
+    // if cli arg for verbosity not present, logging is not started so check config file, or use default
+    if !logging_initialized {
+        let verbosity = if let Some(config_verbosity) = config.get_int("verbosity") {
+            config_verbosity as u8
+        } else {
+            DEFAULT_LOGGING_LEVEL
+        };
 
-    if let Some(path) = cli.config_path.as_deref() {
-        log::debug!("config_path: {}", path.display());
-        // TODO: also check config file for ip address and other settings
+        init_logging(verbosity);
+        log::debug!("logging initialized to level {}", log::max_level());
     }
+
+    log::info!("initializing app");
+
+    // get ip address first from cli, then check config file
+    let ip_address = cli.ip_address.unwrap_or_else(|| {
+        config.get_string("ip_address").unwrap_or_default()
+    });
 
     log::info!("running command: {:?}", cli.command);
 
@@ -255,33 +284,33 @@ fn main () {
             msg.set_all_on(false);
             msg.set_blower_1(proto::Live::live::PumpStatus::PUMP_OFF);
             msg.set_blower_2(proto::Live::live::PumpStatus::PUMP_OFF);
-            msg.set_current_adc(0);
-            msg.set_economy(false);
-            msg.set_error(0);
-            msg.set_exhaust_fan(false);
-            msg.set_filter(proto::Live::live::FilterStatus::FILTER_IDLE);
-            msg.set_fogger(false);
-            msg.set_heater_1(proto::Live::live::HeaterStatus::HEATER_HEATING);
-            msg.set_heater_2(proto::Live::live::HeaterStatus::HEATER_IDLE);
-            msg.set_heater_adc(20);
-            msg.set_lights(false);
-            msg.set_onzen(true);
-            msg.set_orp(650);
-            msg.set_ozone(proto::Live::live::OzoneStatus::OZONE_ACTIVE);
-            msg.set_ph(712);
-            msg.set_pump_1(proto::Live::live::PumpStatus::PUMP_LOW);
-            msg.set_pump_2(proto::Live::live::PumpStatus::PUMP_HIGH);
-            msg.set_pump_3(proto::Live::live::PumpStatus::PUMP_OFF);
-            msg.set_pump_4(proto::Live::live::PumpStatus::PUMP_OFF);
-            msg.set_pump_5(proto::Live::live::PumpStatus::PUMP_OFF);
-            msg.set_sauna(proto::Live::live::SaunaStatus::SAUNA_NORMAL);
-            msg.set_sauna_time_remaining(0);
-            msg.set_sds(false);
-            msg.set_status(67);
-            msg.set_stereo(false);
-            msg.set_temperature_fahrenheit(102);
-            msg.set_temperature_setpoint_fahrenheit(104);
-            msg.set_yess(false);
+            // msg.set_current_adc(0);
+            // msg.set_economy(false);
+            // msg.set_error(0);
+            // msg.set_exhaust_fan(false);
+            // msg.set_filter(proto::Live::live::FilterStatus::FILTER_IDLE);
+            // msg.set_fogger(false);
+            // msg.set_heater_1(proto::Live::live::HeaterStatus::HEATER_HEATING);
+            // msg.set_heater_2(proto::Live::live::HeaterStatus::HEATER_IDLE);
+            // msg.set_heater_adc(20);
+            // msg.set_lights(false);
+            // msg.set_onzen(true);
+            // msg.set_orp(650);
+            // msg.set_ozone(proto::Live::live::OzoneStatus::OZONE_ACTIVE);
+            // msg.set_ph(712);
+            // msg.set_pump_1(proto::Live::live::PumpStatus::PUMP_LOW);
+            // msg.set_pump_2(proto::Live::live::PumpStatus::PUMP_HIGH);
+            // msg.set_pump_3(proto::Live::live::PumpStatus::PUMP_OFF);
+            // msg.set_pump_4(proto::Live::live::PumpStatus::PUMP_OFF);
+            // msg.set_pump_5(proto::Live::live::PumpStatus::PUMP_OFF);
+            // msg.set_sauna(proto::Live::live::SaunaStatus::SAUNA_NORMAL);
+            // msg.set_sauna_time_remaining(0);
+            // msg.set_sds(false);
+            // msg.set_status(67);
+            // msg.set_stereo(false);
+            // msg.set_temperature_fahrenheit(102);
+            // msg.set_temperature_setpoint_fahrenheit(104);
+            // msg.set_yess(false);
 
             let msg_wrapped = asdc::ProtoMessage::Live(msg);
 
@@ -298,8 +327,8 @@ fn main () {
             match command {
                 ConfigCommands::Get { key } => {
                     let key_str = key.as_str();
-                    match config::get_string(&cfg, key_str) {
-                        Some(value) => println!("{}: {}", key_str, value),
+                    match config.get_string(key_str) {
+                        Some(value) => println!("config value: {} = {:#?}", key_str, value),
                         None => {
                             log::warn!("config key not found: {}", key_str);
                             println!("config key not found: {}", key_str);
@@ -308,8 +337,8 @@ fn main () {
                 },
                 ConfigCommands::Set { key, value } => {
                     let key_str = key.as_str();
-                    match config::set_value(key_str, value) {
-                        Ok(_) => println!("config set: {} = {}", key_str, value),
+                    match config.set_value(key_str, value) {
+                        Ok(_) => println!("config value set: {} = {}", key_str, value),
                         Err(e) => {
                             log::error!("failed to set config: {}", e);
                             println!("failed to set config: {}", e);
