@@ -42,8 +42,8 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Request information from the device
-    Get {
+    /// Request protobuf messages from the device
+    Query {
         /// Message type to query
         #[arg(value_enum)]
         message_name: MessageName,
@@ -52,14 +52,10 @@ enum Commands {
         #[arg(short, long, value_name = "OUTPUT_FILE_PATH")]
         output_path: Option<PathBuf>,
     },
-    /// Send a property update command to the device
-    Set {
-        /// Hot tub property to set
-        #[arg(value_enum)]
-        property_name: CommandPropertyName,
-
-        /// Value to set the property to
-        value: String,
+    /// Primary hot tub functions
+    Device {
+        #[command(subcommand)]
+        command: DeviceCommands,
     },
     /// Store and retrieve application settings
     Config {
@@ -69,96 +65,29 @@ enum Commands {
 }
 
 #[derive(Subcommand, Debug)]
-enum ConfigCommands {
-    /// Display a config property
+enum DeviceCommands {
+    /// Display a device property
     Get {
-        /// Config property to display
+        /// Device property to display
         #[arg(value_enum)]
-        property_name: ConfigPropertyName,
+        property_name: DevicePropertyName,
     },
-    /// Set a config property
+    /// Set a device property
     Set {
-        /// Config property to set
+        /// Device property to set
         #[arg(value_enum)]
-        property_name: ConfigPropertyName,
+        property_name: DevicePropertyName,
 
         /// Value to set the property to
         value: String,
     },
-    /// Display all config properties
+    /// Display all device properties
     Dump { }
 }
 
-// #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
-#[derive(Copy, Clone, ValueEnum, Debug)]
-enum ConfigPropertyName {
-    /// IP Address
-    IpAddress,
-    /// Verbosity
-    Verbosity
-}
-
-impl ConfigPropertyName {
-    fn as_str(&self) -> &str {
-        match self {
-            ConfigPropertyName::IpAddress => "ip_address",
-            ConfigPropertyName::Verbosity => "verbosity",
-        }
-    }
-}
-
-
-// #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
-#[derive(Copy, Clone, ValueEnum, Debug)]
-enum MessageName {
-    /// Status of temperatures, pumps, blowers, lights, filters, ozone, etc
-    Live,
-    /// Settings for filtration, onzen, ozone, minimum and maximum values, etc
-    Settings,
-    /// Capabilities of the hot tub such as pump layouts and installed features
-    Configuration,
-    /// Settings for power draw management
-    Peak,
-    /// Device system clock information
-    Clock,
-    /// Serial numbers, firmware and hardware versions, etc
-    Information,
-    /// Error status indicators
-    Error,
-    /// Router details
-    Router,
-    /// Filter maintenance information
-    Filter,
-    /// Information about installed peripheral device
-    Peripheral,
-    /// Status of orp and ph levels, electrode details, etc
-    OnzenLive,
-    /// Definitions for minimum and maximum thresholds of OnzenLive statuses
-    OnzenSettings
-}
-
-impl From<MessageName> for asdc::MessageType {
-    fn from(value: MessageName) -> Self {
-        match value {
-            MessageName::Live => asdc::MessageType::Live,
-            MessageName::Settings => asdc::MessageType::Settings,
-            MessageName::Configuration => asdc::MessageType::Configuration,
-            MessageName::Peak => asdc::MessageType::Peak,
-            MessageName::Clock => asdc::MessageType::Clock,
-            MessageName::Information => asdc::MessageType::Information,
-            MessageName::Error => asdc::MessageType::Error,
-            MessageName::Router => asdc::MessageType::Router,
-            MessageName::Filter => asdc::MessageType::Filter,
-            MessageName::Peripheral => asdc::MessageType::Peripheral,
-            MessageName::OnzenLive => asdc::MessageType::OnzenLive,
-            MessageName::OnzenSettings => asdc::MessageType::OnzenSettings,
-        }
-    }
-}
-
 
 #[derive(Copy, Clone, ValueEnum, Debug)]
-enum CommandPropertyName {
+enum DevicePropertyName {
     /// Temperature setpoint in Fahrenheit (integer: min 59, max 104)
     #[value(name = "temperature-setpoint")]
     TemperatureSetpoint,
@@ -224,6 +153,96 @@ enum CommandPropertyName {
     /// YESS (ON, OFF)
     Yess,
 }
+
+
+// #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+#[derive(Copy, Clone, ValueEnum, Debug)]
+enum MessageName {
+    /// Status of temperatures, pumps, blowers, lights, filters, ozone, etc
+    Live,
+    /// Settings for filtration, onzen, ozone, minimum and maximum values, etc
+    Settings,
+    /// Capabilities of the hot tub such as pump layouts and installed features
+    Configuration,
+    /// Settings for power draw management
+    Peak,
+    /// Device system clock information
+    Clock,
+    /// Serial numbers, firmware and hardware versions, etc
+    Information,
+    /// Error status indicators
+    Error,
+    /// Router details
+    Router,
+    /// Filter maintenance information
+    Filter,
+    /// Information about installed peripheral device
+    Peripheral,
+    /// Status of orp and ph levels, electrode details, etc
+    OnzenLive,
+    /// Definitions for minimum and maximum thresholds of OnzenLive statuses
+    OnzenSettings
+}
+
+impl From<MessageName> for asdc::MessageType {
+    fn from(value: MessageName) -> Self {
+        match value {
+            MessageName::Live => asdc::MessageType::Live,
+            MessageName::Settings => asdc::MessageType::Settings,
+            MessageName::Configuration => asdc::MessageType::Configuration,
+            MessageName::Peak => asdc::MessageType::Peak,
+            MessageName::Clock => asdc::MessageType::Clock,
+            MessageName::Information => asdc::MessageType::Information,
+            MessageName::Error => asdc::MessageType::Error,
+            MessageName::Router => asdc::MessageType::Router,
+            MessageName::Filter => asdc::MessageType::Filter,
+            MessageName::Peripheral => asdc::MessageType::Peripheral,
+            MessageName::OnzenLive => asdc::MessageType::OnzenLive,
+            MessageName::OnzenSettings => asdc::MessageType::OnzenSettings,
+        }
+    }
+}
+
+
+#[derive(Subcommand, Debug)]
+enum ConfigCommands {
+    /// Display a config property
+    Get {
+        /// Config property to display
+        #[arg(value_enum)]
+        property_name: ConfigPropertyName,
+    },
+    /// Set a config property
+    Set {
+        /// Config property to set
+        #[arg(value_enum)]
+        property_name: ConfigPropertyName,
+
+        /// Value to set the property to
+        value: String,
+    },
+    /// Display all config properties
+    Dump { }
+}
+
+// #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+#[derive(Copy, Clone, ValueEnum, Debug)]
+enum ConfigPropertyName {
+    /// IP Address
+    IpAddress,
+    /// Verbosity
+    Verbosity
+}
+
+impl ConfigPropertyName {
+    fn as_str(&self) -> &str {
+        match self {
+            ConfigPropertyName::IpAddress => "ip_address",
+            ConfigPropertyName::Verbosity => "verbosity",
+        }
+    }
+}
+
 
 
 fn init_logging(logging_level: u8) -> () {
@@ -329,7 +348,7 @@ fn main () {
     log::info!("running command: {:?}", cli.command);
 
     match &cli.command {
-        Commands::Get { message_name, output_path } => {
+        Commands::Query { message_name, output_path } => {
             log::debug!("message_name: {:?}", message_name);
             // TODO: actually use or remove
             log::debug!("output_path: {:?}", output_path);
@@ -386,81 +405,92 @@ fn main () {
 
             cmds::display_message(message_type, msg_wrapped);
         },
-        Commands::Set { property_name, value } => {
+        Commands::Device { command } => {
             if ip_address.is_empty() {
                 log::error!("no ip address specified; aborting");
                 std::process::exit(1);
             }
-            log::debug!("set property_name: {:?}, value: {:?}", property_name, value);
+            match command {
+                DeviceCommands::Get { property_name } => {
+                    println!("get device property: {:?}", property_name);
+                },
+                DeviceCommands::Set { property_name, value } => {
+                    println!("set device property: {:?} = {:?}", property_name, value);
 
-            // Validate value based on property type
-            match property_name {
-                // Pump/blower status properties: valid values are HIGH, LOW, OFF
-                CommandPropertyName::Pump1
-                | CommandPropertyName::Pump2
-                | CommandPropertyName::Pump3
-                | CommandPropertyName::Pump4
-                | CommandPropertyName::Pump5
-                | CommandPropertyName::Blower1
-                | CommandPropertyName::Blower2 => {
-                    match value.to_uppercase().as_str() {
-                        "HIGH" | "LOW" | "OFF" => {
-                            println!("set {:?} = {}", property_name, value);
+                    // Validate value based on property type
+                    match property_name {
+                        // Pump/blower status properties: valid values are HIGH, LOW, OFF
+                        DevicePropertyName::Pump1
+                        | DevicePropertyName::Pump2
+                        | DevicePropertyName::Pump3
+                        | DevicePropertyName::Pump4
+                        | DevicePropertyName::Pump5
+                        | DevicePropertyName::Blower1
+                        | DevicePropertyName::Blower2 => {
+                            match value.to_uppercase().as_str() {
+                                "HIGH" | "LOW" | "OFF" => {
+                                    println!("set {:?} = {}", property_name, value);
+                                }
+                                _ => {
+                                    eprintln!("Invalid pump/blower status: {}. Valid values are: HIGH, LOW, OFF", value);
+                                    std::process::exit(1);
+                                }
+                            }
                         }
-                        _ => {
-                            eprintln!("Invalid pump/blower status: {}. Valid values are: HIGH, LOW, OFF", value);
-                            std::process::exit(1);
+                        // Boolean properties: valid values are ON, OFF
+                        DevicePropertyName::Lights
+                        | DevicePropertyName::Stereo
+                        | DevicePropertyName::Filter
+                        | DevicePropertyName::Onzen
+                        | DevicePropertyName::Ozone
+                        | DevicePropertyName::ExhaustFan
+                        | DevicePropertyName::AllOn
+                        | DevicePropertyName::Fogger
+                        | DevicePropertyName::SpaboyBoost
+                        | DevicePropertyName::PackReset
+                        | DevicePropertyName::LogDump
+                        | DevicePropertyName::Sds
+                        | DevicePropertyName::Yess => {
+                            match value.to_uppercase().as_str() {
+                                "ON" | "OFF" => {
+                                    println!("set {:?} = {}", property_name, value);
+                                }
+                                _ => {
+                                    eprintln!("Invalid toggle value: {}. Valid values are: ON, OFF", value);
+                                    std::process::exit(1);
+                                }
+                            }
+                        }
+                        DevicePropertyName::SaunaState => {
+                            match value.to_uppercase().as_str() {
+                                "IDLE" | "PRESET_A" | "PRESET_B" | "PRESET_C" | "TIMER" => {
+                                    println!("set {:?} = {}", property_name, value);
+                                }
+                                _ => {
+                                    eprintln!("Invalid sauna state: {}. Valid values are: IDLE, PRESET_A, PRESET_B, PRESET_C, TIMER", value);
+                                    std::process::exit(1);
+                                }
+                            }
+                        }
+                        // Numeric properties: validate as integer
+                        DevicePropertyName::TemperatureSetpoint
+                        | DevicePropertyName::Temp
+                        | DevicePropertyName::SaunaTimeLeft => {
+                            match value.parse::<i32>() {
+                                Ok(_) => {
+                                    println!("set {:?} = {}", property_name, value);
+                                }
+                                Err(_) => {
+                                    eprintln!("Invalid numeric value: {}. Must be an integer", value);
+                                    std::process::exit(1);
+                                }
+                            }
                         }
                     }
-                }
-                // Boolean properties: valid values are ON, OFF
-                CommandPropertyName::Lights
-                | CommandPropertyName::Stereo
-                | CommandPropertyName::Filter
-                | CommandPropertyName::Onzen
-                | CommandPropertyName::Ozone
-                | CommandPropertyName::ExhaustFan
-                | CommandPropertyName::AllOn
-                | CommandPropertyName::Fogger
-                | CommandPropertyName::SpaboyBoost
-                | CommandPropertyName::PackReset
-                | CommandPropertyName::LogDump
-                | CommandPropertyName::Sds
-                | CommandPropertyName::Yess => {
-                    match value.to_uppercase().as_str() {
-                        "ON" | "OFF" => {
-                            println!("set {:?} = {}", property_name, value);
-                        }
-                        _ => {
-                            eprintln!("Invalid toggle value: {}. Valid values are: ON, OFF", value);
-                            std::process::exit(1);
-                        }
-                    }
-                }
-                CommandPropertyName::SaunaState => {
-                    match value.to_uppercase().as_str() {
-                        "IDLE" | "PRESET_A" | "PRESET_B" | "PRESET_C" | "TIMER" => {
-                             println!("set {:?} = {}", property_name, value);
-                        }
-                        _ => {
-                            eprintln!("Invalid sauna state: {}. Valid values are: IDLE, PRESET_A, PRESET_B, PRESET_C, TIMER", value);
-                            std::process::exit(1);
-                        }
-                    }
-                }
-                // Numeric properties: validate as integer
-                CommandPropertyName::TemperatureSetpoint
-                | CommandPropertyName::Temp
-                | CommandPropertyName::SaunaTimeLeft => {
-                    match value.parse::<i32>() {
-                        Ok(_) => {
-                            println!("set {:?} = {}", property_name, value);
-                        }
-                        Err(_) => {
-                            eprintln!("Invalid numeric value: {}. Must be an integer", value);
-                            std::process::exit(1);
-                        }
-                    }
+                },
+                DeviceCommands::Dump {  } => {
+                    println!("displaying all device properties");
+                    // println!("{}", config.to_string_pretty().unwrap());
                 }
             }
         },
