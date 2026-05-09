@@ -240,6 +240,35 @@ impl TryFrom<&Packet> for ProtoMessage {
 }
 
 
+fn test() {
+    let mut msg_cmd = proto::Command::Command::new();
+    msg_cmd.set_set_temperature_setpoint_fahrenheit(104);
+    msg_cmd.set_set_pump_1(proto::Command::command::SetPumpStatus::PUMP_LOW);
+    msg_cmd.set_set_pump_2(proto::Command::command::SetPumpStatus::PUMP_HIGH);
+    msg_cmd.set_set_pump_3(proto::Command::command::SetPumpStatus::PUMP_OFF);
+    msg_cmd.set_set_pump_4(proto::Command::command::SetPumpStatus::PUMP_OFF);
+    msg_cmd.set_set_pump_5(proto::Command::command::SetPumpStatus::PUMP_OFF);
+    msg_cmd.set_set_blower_1(proto::Command::command::SetPumpStatus::PUMP_OFF);
+    msg_cmd.set_set_blower_2(proto::Command::command::SetPumpStatus::PUMP_OFF);
+    msg_cmd.set_set_lights(true);
+    msg_cmd.set_set_stereo(false);
+    msg_cmd.set_set_filter(true);
+    msg_cmd.set_set_onzen(true);
+    msg_cmd.set_set_ozone(true);
+    msg_cmd.set_set_exhaust_fan(false);
+    msg_cmd.set_set_sauna_state(proto::Command::command::SetSaunaState::SAUNA_IDLE);
+    msg_cmd.set_set_sauna_time_left(0);
+    msg_cmd.set_set_all_on(false);
+    msg_cmd.set_set_fogger(false);
+    msg_cmd.set_set_spaboy_boost(false);
+    msg_cmd.set_set_pack_reset(false);
+    msg_cmd.set_set_log_dump(false);
+    msg_cmd.set_set_sds(false);
+    msg_cmd.set_set_yess(false);
+
+}
+
+
 pub struct NetworkClient {
     host: String,
     port: String,

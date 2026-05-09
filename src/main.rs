@@ -36,19 +36,15 @@ struct Cli {
     #[arg(short, long, value_name = "LOGGING_LEVEL")]
     verbosity: Option<u8>,
 
-    // /// Dry run
-    // #[arg(short, long)]
-    // dry_run: bool,
-
     #[command(subcommand)]
     command: Commands,
 }
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Request information from the host
+    /// Request information from the device
     Get {
-        /// Message to query
+        /// Message type to query
         #[arg(value_enum)]
         message_name: MessageName,
 
@@ -56,10 +52,14 @@ enum Commands {
         #[arg(short, long, value_name = "OUTPUT_FILE_PATH")]
         output_path: Option<PathBuf>,
     },
-    /// Send an update command request to the host
+    /// Send a property update command to the device
     Set {
-        /// Property to set
-        property_name: String,
+        /// Hot tub property to set
+        #[arg(value_enum)]
+        property_name: CommandPropertyName,
+
+        /// Value to set the property to
+        value: String,
     },
     /// Store and retrieve application settings
     Config {
@@ -70,42 +70,39 @@ enum Commands {
 
 #[derive(Subcommand, Debug)]
 enum ConfigCommands {
-    /// Display a config value
+    /// Display a config property
     Get {
-        /// Config key to display
+        /// Config property to display
         #[arg(value_enum)]
-        key: ConfigKey,
+        property_name: ConfigPropertyName,
     },
-    /// Set a config value
+    /// Set a config property
     Set {
-        /// Config key to update
+        /// Config property to set
         #[arg(value_enum)]
-        key: ConfigKey,
+        property_name: ConfigPropertyName,
 
-        /// Config value to set
+        /// Value to set the property to
         value: String,
     },
-    /// Display all config key value pairs
-    Dump {
-
-    }
+    /// Display all config properties
+    Dump { }
 }
 
 // #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 #[derive(Copy, Clone, ValueEnum, Debug)]
-enum ConfigKey {
+enum ConfigPropertyName {
     /// IP Address
-    #[value(name = "ip_address")]
     IpAddress,
     /// Verbosity
     Verbosity
 }
 
-impl ConfigKey {
+impl ConfigPropertyName {
     fn as_str(&self) -> &str {
         match self {
-            ConfigKey::IpAddress => "ip_address",
-            ConfigKey::Verbosity => "verbosity",
+            ConfigPropertyName::IpAddress => "ip_address",
+            ConfigPropertyName::Verbosity => "verbosity",
         }
     }
 }
@@ -157,6 +154,75 @@ impl From<MessageName> for asdc::MessageType {
             MessageName::OnzenSettings => asdc::MessageType::OnzenSettings,
         }
     }
+}
+
+
+#[derive(Copy, Clone, ValueEnum, Debug)]
+enum CommandPropertyName {
+    /// Temperature setpoint in Fahrenheit (integer: min 59, max 104)
+    #[value(name = "temperature-setpoint")]
+    TemperatureSetpoint,
+    /// Temperature setpoint shortcut
+    #[value(name = "temp")]
+    Temp,
+    /// Pump 1 status (HIGH, LOW, OFF)
+    #[value(name = "pump-1")]
+    Pump1,
+    /// Pump 2 status (HIGH, LOW, OFF)
+    #[value(name = "pump-2")]
+    Pump2,
+    /// Pump 3 status (HIGH, LOW, OFF)
+    #[value(name = "pump-3")]
+    Pump3,
+    /// Pump 4 status (HIGH, LOW, OFF)
+    #[value(name = "pump-4")]
+    Pump4,
+    /// Pump 5 status (HIGH, LOW, OFF)
+    #[value(name = "pump-5")]
+    Pump5,
+    /// Blower 1 status (HIGH, LOW, OFF)
+    #[value(name = "blower-1")]
+    Blower1,
+    /// Blower 2 status (HIGH, LOW, OFF)
+    #[value(name = "blower-2")]
+    Blower2,
+    /// Lights (ON, OFF)
+    Lights,
+    /// Stereo (ON, OFF)
+    Stereo,
+    /// Filter (ON, OFF)
+    Filter,
+    /// Onzen (ON, OFF)
+    Onzen,
+    /// Ozone (ON, OFF)
+    Ozone,
+    /// Exhaust fan (ON, OFF)
+    #[value(name = "exhaust-fan")]
+    ExhaustFan,
+    /// Sauna state (accepts integer value)
+    #[value(name = "sauna-state")]
+    SaunaState,
+    /// Sauna time left in minutes (integer: min 0, max 60)
+    #[value(name = "sauna-time-left")]
+    SaunaTimeLeft,
+    /// EZ button - turn on / off all jets and lights at once (ON, OFF)
+    #[value(name = "all-on")]
+    AllOn,
+    /// Fogger (ON, OFF)
+    Fogger,
+    /// Spaboy boost (ON, OFF)
+    #[value(name = "spaboy-boost")]
+    SpaboyBoost,
+    /// Pack reset (ON, OFF)
+    #[value(name = "pack-reset")]
+    PackReset,
+    /// Log dump (ON, OFF)
+    #[value(name = "log-dump")]
+    LogDump,
+    /// SDS (ON, OFF)
+    Sds,
+    /// YESS (ON, OFF)
+    Yess,
 }
 
 
@@ -246,8 +312,7 @@ fn main () {
         }
     };
 
-    // if cli arg for verbosity is not present, logging is not initialized
-    // check config file or use default value
+    // if cli arg for verbosity is not present, logging is not initialized - check config file or use default value
     if !logging_initialized {
         let verbosity = config.data.verbosity.unwrap_or_else(|| DEFAULT_LOGGING_LEVEL);
         init_logging(verbosity);
@@ -321,20 +386,91 @@ fn main () {
 
             cmds::display_message(message_type, msg_wrapped);
         },
-        Commands::Set { property_name } => {
+        Commands::Set { property_name, value } => {
             if ip_address.is_empty() {
                 log::error!("no ip address specified; aborting");
                 std::process::exit(1);
             }
-            println!("set property: {:?}", property_name);
+            log::debug!("set property_name: {:?}, value: {:?}", property_name, value);
+
+            // Validate value based on property type
+            match property_name {
+                // Pump/blower status properties: valid values are HIGH, LOW, OFF
+                CommandPropertyName::Pump1
+                | CommandPropertyName::Pump2
+                | CommandPropertyName::Pump3
+                | CommandPropertyName::Pump4
+                | CommandPropertyName::Pump5
+                | CommandPropertyName::Blower1
+                | CommandPropertyName::Blower2 => {
+                    match value.to_uppercase().as_str() {
+                        "HIGH" | "LOW" | "OFF" => {
+                            println!("set {:?} = {}", property_name, value);
+                        }
+                        _ => {
+                            eprintln!("Invalid pump/blower status: {}. Valid values are: HIGH, LOW, OFF", value);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                // Boolean properties: valid values are ON, OFF
+                CommandPropertyName::Lights
+                | CommandPropertyName::Stereo
+                | CommandPropertyName::Filter
+                | CommandPropertyName::Onzen
+                | CommandPropertyName::Ozone
+                | CommandPropertyName::ExhaustFan
+                | CommandPropertyName::AllOn
+                | CommandPropertyName::Fogger
+                | CommandPropertyName::SpaboyBoost
+                | CommandPropertyName::PackReset
+                | CommandPropertyName::LogDump
+                | CommandPropertyName::Sds
+                | CommandPropertyName::Yess => {
+                    match value.to_uppercase().as_str() {
+                        "ON" | "OFF" => {
+                            println!("set {:?} = {}", property_name, value);
+                        }
+                        _ => {
+                            eprintln!("Invalid toggle value: {}. Valid values are: ON, OFF", value);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                CommandPropertyName::SaunaState => {
+                    match value.to_uppercase().as_str() {
+                        "IDLE" | "PRESET_A" | "PRESET_B" | "PRESET_C" | "TIMER" => {
+                             println!("set {:?} = {}", property_name, value);
+                        }
+                        _ => {
+                            eprintln!("Invalid sauna state: {}. Valid values are: IDLE, PRESET_A, PRESET_B, PRESET_C, TIMER", value);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+                // Numeric properties: validate as integer
+                CommandPropertyName::TemperatureSetpoint
+                | CommandPropertyName::Temp
+                | CommandPropertyName::SaunaTimeLeft => {
+                    match value.parse::<i32>() {
+                        Ok(_) => {
+                            println!("set {:?} = {}", property_name, value);
+                        }
+                        Err(_) => {
+                            eprintln!("Invalid numeric value: {}. Must be an integer", value);
+                            std::process::exit(1);
+                        }
+                    }
+                }
+            }
         },
         Commands::Config { command } => {
             match command {
-                ConfigCommands::Get { key } => {
-                    let key_str = key.as_str();
+                ConfigCommands::Get { property_name } => {
+                    let key = property_name.as_str();
 
-                    match config.get_value(key_str) {
-                        Ok(value) => println!("config value: {:?} = {:?}", key_str, value),
+                    match config.get_value(key) {
+                        Ok(value) => println!("config value: {:?} = {:?}", key, value),
                         Err(e) => {
                             if log::log_enabled!(log::Level::Error) {
                                 log::error!("failed to get config: {:?}", e);
@@ -344,11 +480,11 @@ fn main () {
                         }
                     }
                 },
-                ConfigCommands::Set { key, value } => {
-                    let key_str = key.as_str();
+                ConfigCommands::Set { property_name, value } => {
+                    let key = property_name.as_str();
 
-                    match config.set_value(key_str, value) {
-                        Ok(_) => println!("config value set: {:?} = {:?}", key_str, value),
+                    match config.set_value(key, value) {
+                        Ok(_) => println!("config value set: {:?} = {:?}", key, value),
                         Err(e) => {
                             if log::log_enabled!(log::Level::Error) {
                                 log::error!("failed to set config: {:?}", e);
@@ -360,7 +496,7 @@ fn main () {
                     }
                 },
                 ConfigCommands::Dump {  } => {
-                    println!("displaying all config key-value pairs");
+                    println!("displaying all config properties");
                     println!("{}", config.to_string_pretty().unwrap());
                 }
             }
