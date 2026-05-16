@@ -194,22 +194,99 @@ pub enum ProtoMessage {
     OnzenSettings(proto::OnzenSettings::OnzenSettings)
 }
 
-// impl ProtoMessage {
-//     pub fn as_live(&self) -> Option<&proto::Live::Live> {
-//         match self {
-//             ProtoMessage::Live(msg) => Some(msg),
-//             _ => None,
-//         }
-//     }
+impl ProtoMessage {
+    pub fn as_live(&self) -> Option<&proto::Live::Live> {
+        match self {
+            ProtoMessage::Live(msg) => Some(msg),
+            _ => None,
+        }
+    }
 
-//     pub fn as_settings(&self) -> Option<&proto::Settings::Settings> {
-//         match self {
-//             ProtoMessage::Settings(msg) => Some(msg),
-//             _ => None,
-//         }
-//     }
-//     // ... etc for each variant
-// }
+    pub fn as_command(&self) -> Option<&proto::Command::Command> {
+        match self {
+            ProtoMessage::Command(msg) => Some(msg),
+            _ => None,
+        }
+    }
+
+    pub fn as_settings(&self) -> Option<&proto::Settings::Settings> {
+        match self {
+            ProtoMessage::Settings(msg) => Some(msg),
+            _ => None,
+        }
+    }
+
+    pub fn as_configuration(&self) -> Option<&proto::Configuration::Configuration> {
+        match self {
+            ProtoMessage::Configuration(msg) => Some(msg),
+            _ => None,
+        }
+    }
+
+    pub fn as_peak(&self) -> Option<&proto::Peak::Peak> {
+        match self {
+            ProtoMessage::Peak(msg) => Some(msg),
+            _ => None,
+        }
+    }
+
+    pub fn as_clock(&self) -> Option<&proto::Clock::Clock> {
+        match self {
+            ProtoMessage::Clock(msg) => Some(msg),
+            _ => None,
+        }
+    }
+
+    pub fn as_information(&self) -> Option<&proto::Information::Information> {
+        match self {
+            ProtoMessage::Information(msg) => Some(msg),
+            _ => None,
+        }
+    }
+
+    pub fn as_error(&self) -> Option<&proto::Error::Error> {
+        match self {
+            ProtoMessage::Error(msg) => Some(msg),
+            _ => None,
+        }
+    }
+
+    pub fn as_router(&self) -> Option<&proto::Router::Router> {
+        match self {
+            ProtoMessage::Router(msg) => Some(msg),
+            _ => None,
+        }
+    }
+
+    pub fn as_filter(&self) -> Option<&proto::Filter::Filter> {
+        match self {
+            ProtoMessage::Filter(msg) => Some(msg),
+            _ => None,
+        }
+    }
+
+    pub fn as_peripheral(&self) -> Option<&proto::Peripheral::Peripheral> {
+        match self {
+            ProtoMessage::Peripheral(msg) => Some(msg),
+            _ => None,
+        }
+    }
+
+    pub fn as_onzen_live(&self) -> Option<&proto::OnzenLive::OnzenLive> {
+        match self {
+            ProtoMessage::OnzenLive(msg) => Some(msg),
+            _ => None,
+        }
+    }
+
+    pub fn as_onzen_settings(&self) -> Option<&proto::OnzenSettings::OnzenSettings> {
+        match self {
+            ProtoMessage::OnzenSettings(msg) => Some(msg),
+            _ => None,
+        }
+    }
+}
+
 
 impl TryFrom<&Packet> for ProtoMessage {
     type Error = Error;
@@ -240,35 +317,6 @@ impl TryFrom<&Packet> for ProtoMessage {
 }
 
 
-fn test() {
-    let mut msg_cmd = proto::Command::Command::new();
-    msg_cmd.set_set_temperature_setpoint_fahrenheit(104);
-    msg_cmd.set_set_pump_1(proto::Command::command::SetPumpStatus::PUMP_LOW);
-    msg_cmd.set_set_pump_2(proto::Command::command::SetPumpStatus::PUMP_HIGH);
-    msg_cmd.set_set_pump_3(proto::Command::command::SetPumpStatus::PUMP_OFF);
-    msg_cmd.set_set_pump_4(proto::Command::command::SetPumpStatus::PUMP_OFF);
-    msg_cmd.set_set_pump_5(proto::Command::command::SetPumpStatus::PUMP_OFF);
-    msg_cmd.set_set_blower_1(proto::Command::command::SetPumpStatus::PUMP_OFF);
-    msg_cmd.set_set_blower_2(proto::Command::command::SetPumpStatus::PUMP_OFF);
-    msg_cmd.set_set_lights(true);
-    msg_cmd.set_set_stereo(false);
-    msg_cmd.set_set_filter(true);
-    msg_cmd.set_set_onzen(true);
-    msg_cmd.set_set_ozone(true);
-    msg_cmd.set_set_exhaust_fan(false);
-    msg_cmd.set_set_sauna_state(proto::Command::command::SetSaunaState::SAUNA_IDLE);
-    msg_cmd.set_set_sauna_time_left(0);
-    msg_cmd.set_set_all_on(false);
-    msg_cmd.set_set_fogger(false);
-    msg_cmd.set_set_spaboy_boost(false);
-    msg_cmd.set_set_pack_reset(false);
-    msg_cmd.set_set_log_dump(false);
-    msg_cmd.set_set_sds(false);
-    msg_cmd.set_set_yess(false);
-
-}
-
-
 pub struct NetworkClient {
     host: String,
     port: String,
@@ -282,6 +330,12 @@ impl NetworkClient {
             port: "65534".to_string(),
             tcp_stream: None
         }
+    }
+
+    pub fn connect_to(ip_address: &str) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut client = Self::new();
+        client.connect(ip_address)?;
+        Ok(client)
     }
 
     pub fn connect(&mut self, host: &str) -> Result<(), Error> {
@@ -315,9 +369,17 @@ impl NetworkClient {
     fn write_packet(&mut self, message_type_value: u16, payload: Vec<u8>) -> Result<(), Error> {
         log::debug!("writing packet: message_type_value={:?}, payload_size={:?}", message_type_value, payload.len());
         let stream = self.get_stream_mut()?;
+
         let mut packet = Packet::new();
         let packet_bytes = packet.serialize(message_type_value, payload);
+
         stream.write_all(&packet_bytes)?;
+
+        match MessageType::try_from(message_type_value) {
+            Ok(message_type) => log::info!("successfully wrote packet for message type {:?}", message_type),
+            Err(_) => log::info!("successfully wrote packet for message type value {}", message_type_value),
+        };
+
         Ok(())
     }
 
@@ -428,5 +490,11 @@ impl NetworkClient {
             current_attempt += 1;
         }
         return Err(Error::new(ErrorKind::NotFound, "did not receive requested message"));
+    }
+
+    pub fn send_command(&mut self, command_message: proto::Command::Command) -> Result<(), Error> {
+        let payload = command_message.write_to_bytes()?;
+        self.write_packet(MessageType::Command.into(), payload)?;
+        Ok(())
     }
 }
