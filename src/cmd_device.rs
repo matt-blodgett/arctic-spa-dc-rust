@@ -347,6 +347,7 @@ fn string_to_i32(value: &String, min: i32, max: i32) -> Result<i32, Box<dyn std:
     Ok(value_parsed)
 }
 
+
 fn device_property_name_to_message_type(property_name: DevicePropertyNameGet) -> asdc::MessageType {
     match property_name {
         DevicePropertyNameGet::TemperatureCurrent
@@ -450,13 +451,14 @@ fn get_message_value(network_client: &mut asdc::NetworkClient, property_name: De
 }
 
 pub fn get_device_property_value(ip_address: &str, property_name: DevicePropertyNameGet) -> Result<String, Box<dyn std::error::Error>> {
-    log::trace!("ip_address={}, property_name={:?}", ip_address, property_name.as_name());
+    log::debug!("read device property value {:?}", property_name.as_name());
     let mut network_client = asdc::NetworkClient::connect_to(ip_address)?;
     let value = get_message_value(&mut network_client, property_name)?;
+    log::info!("successfully read device property value {:?}={:?}", property_name.as_name(), value);
     Ok(value)
 }
 pub fn display_device_property_value(property_name: DevicePropertyNameGet, value: &String) -> () {
-    println!("device value: {:?} = {:?}", property_name, value);
+    println!("device value: {:?} = {:?}", property_name.as_name(), value);
 }
 pub fn get_and_display_all_device_properties(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
     let mut network_client = asdc::NetworkClient::connect_to(ip_address)?;
@@ -501,228 +503,118 @@ pub fn get_and_display_all_device_properties(ip_address: &str) -> Result<(), Box
 }
 
 
+fn send_and_log(
+    network_client: &mut asdc::NetworkClient,
+    property_name: DevicePropertyNameSet,
+    value: &String,
+    command_message: proto::Command::Command,
+) -> Result<(), Box<dyn std::error::Error>> {
+    network_client.send_command(command_message)?;
+    log::info!("successfully wrote device property value {:?}={:?}", property_name.as_name(), value);
+    Ok(())
+}
 pub fn set_device_property_value(ip_address: &str, property_name: DevicePropertyNameSet, value: &String) -> Result<(), Box<dyn std::error::Error>> {
-    log::trace!("ip_address={}, property_name={:?}, value={}", ip_address, property_name.as_name(), value);
+    log::debug!("write device property value {:?}={:?}", property_name.as_name(), value);
 
     let mut network_client = asdc::NetworkClient::connect_to(ip_address)?;
+    let mut command_message = proto::Command::Command::new();
 
     match property_name {
         DevicePropertyNameSet::TemperatureSetpoint
         | DevicePropertyNameSet::TempSetpoint
         | DevicePropertyNameSet::TempSp => {
-            let i32_min = 59;
-            let i32_max = 104;
-            let i32_value = string_to_i32(value, i32_min, i32_max).map_err(|_| {
-                format!("failed to parse temperature setpoint value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let i32_value = string_to_i32(value, 59, 104)?;
             command_message.set_set_temperature_setpoint_fahrenheit(i32_value);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::Pump1 => {
-            let pump_status = string_to_set_pump_status(value).map_err(|_| {
-                format!("failed to parse pump status value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let pump_status = string_to_set_pump_status(value)?;
             command_message.set_set_pump_1(pump_status);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::Pump2 => {
-            let pump_status = string_to_set_pump_status(value).map_err(|_| {
-                format!("failed to parse pump status value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let pump_status = string_to_set_pump_status(value)?;
             command_message.set_set_pump_2(pump_status);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::Pump3 => {
-            let pump_status = string_to_set_pump_status(value).map_err(|_| {
-                format!("failed to parse pump status value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let pump_status = string_to_set_pump_status(value)?;
             command_message.set_set_pump_3(pump_status);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::Pump4 => {
-            let pump_status = string_to_set_pump_status(value).map_err(|_| {
-                format!("failed to parse pump status value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let pump_status = string_to_set_pump_status(value)?;
             command_message.set_set_pump_4(pump_status);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::Pump5 => {
-            let pump_status = string_to_set_pump_status(value).map_err(|_| {
-                format!("failed to parse pump status value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let pump_status = string_to_set_pump_status(value)?;
             command_message.set_set_pump_5(pump_status);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::Blower1 => {
-            let pump_status = string_to_set_pump_status(value).map_err(|_| {
-                format!("failed to parse blower status value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let pump_status = string_to_set_pump_status(value)?;
             command_message.set_set_blower_1(pump_status);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::Blower2 => {
-            let pump_status = string_to_set_pump_status(value).map_err(|_| {
-                format!("failed to parse blower status value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let pump_status = string_to_set_pump_status(value)?;
             command_message.set_set_blower_2(pump_status);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::Lights => {
-            let bool_value = string_to_bool(value).map_err(|_| {
-                format!("failed to parse lights value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let bool_value = string_to_bool(value)?;
             command_message.set_set_lights(bool_value);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::Stereo => {
-            let bool_value = string_to_bool(value).map_err(|_| {
-                format!("failed to parse stereo value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let bool_value = string_to_bool(value)?;
             command_message.set_set_stereo(bool_value);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::Filter => {
-            let bool_value = string_to_bool(value).map_err(|_| {
-                format!("failed to parse filter value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let bool_value = string_to_bool(value)?;
             command_message.set_set_filter(bool_value);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::Onzen => {
-            let bool_value = string_to_bool(value).map_err(|_| {
-                format!("failed to parse onzen value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let bool_value = string_to_bool(value)?;
             command_message.set_set_onzen(bool_value);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::Ozone => {
-            let bool_value = string_to_bool(value).map_err(|_| {
-                format!("failed to parse ozone value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let bool_value = string_to_bool(value)?;
             command_message.set_set_ozone(bool_value);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::ExhaustFan => {
-            let bool_value = string_to_bool(value).map_err(|_| {
-                format!("failed to parse exhaust fan value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let bool_value = string_to_bool(value)?;
             command_message.set_set_exhaust_fan(bool_value);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::SaunaState => {
-            let sauna_state = string_to_set_sauna_state(value).map_err(|_| {
-                format!("failed to parse sauna state value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let sauna_state = string_to_set_sauna_state(value)?;
             command_message.set_set_sauna_state(sauna_state);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::SaunaTimeLeft => {
-            let i32_min = 0;
-            let i32_max = 120;
-            let i32_value = string_to_i32(value, i32_min, i32_max).map_err(|_| {
-                format!("failed to parse sauna time left value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let i32_value = string_to_i32(value, 0, 120)?;
             command_message.set_set_sauna_time_left(i32_value);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::AllOn => {
-            let bool_value = string_to_bool(value).map_err(|_| {
-                format!("failed to parse all-on value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let bool_value = string_to_bool(value)?;
             command_message.set_set_all_on(bool_value);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::Fogger => {
-            let bool_value = string_to_bool(value).map_err(|_| {
-                format!("failed to parse fogger value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let bool_value = string_to_bool(value)?;
             command_message.set_set_fogger(bool_value);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::SpaboyBoost => {
-            let bool_value = string_to_bool(value).map_err(|_| {
-                format!("failed to parse spaboy boost value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let bool_value = string_to_bool(value)?;
             command_message.set_set_spaboy_boost(bool_value);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::PackReset => {
-            let bool_value = string_to_bool(value).map_err(|_| {
-                format!("failed to parse pack reset value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let bool_value = string_to_bool(value)?;
             command_message.set_set_pack_reset(bool_value);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::LogDump => {
-            let bool_value = string_to_bool(value).map_err(|_| {
-                format!("failed to parse log dump value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let bool_value = string_to_bool(value)?;
             command_message.set_set_log_dump(bool_value);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::Sds => {
-            let bool_value = string_to_bool(value).map_err(|_| {
-                format!("failed to parse sds value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let bool_value = string_to_bool(value)?;
             command_message.set_set_sds(bool_value);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
         DevicePropertyNameSet::Yess => {
-            let bool_value = string_to_bool(value).map_err(|_| {
-                format!("failed to parse yess value: {}", value)
-            })?;
-            let mut command_message = proto::Command::Command::new();
+            let bool_value = string_to_bool(value)?;
             command_message.set_set_yess(bool_value);
-            network_client.send_command(command_message)?;
-            Ok(())
         }
     }
+
+    send_and_log(&mut network_client, property_name, value, command_message)
 }
-
-
-
-
