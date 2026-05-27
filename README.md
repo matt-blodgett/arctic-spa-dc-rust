@@ -22,7 +22,20 @@ Throughout this documentation, `asdc` refers to the built binary. You can add it
 
 ## Usage
 
-Below is a brief description of each currently available subcommand.
+Below is a brief description of each currently available command.
+
+### Discover
+
+Automatically identify and display any available and valid IP Addresses of locally connected Arctic Spa brand hot tubs.
+
+**Examples:**
+```bash
+# display ip addresses for any connected hot tubs
+asdc discover
+
+# display discovered ip addresses and update the config file with the first result
+asdc discover --update-config
+```
 
 ### Query
 
@@ -44,7 +57,7 @@ Request protobuf messages from the device. Returns information about device stat
 
 **Examples:**
 ```bash
-# query the OnzenLive protobuf message from the host IP with silent logging
+# query the OnzenLive protobuf message from the host ip with silent logging
 asdc query onzen-live --ip-address "192.168.0.1" --verbosity 0
 ```
 
@@ -53,7 +66,6 @@ asdc query onzen-live --ip-address "192.168.0.1" --verbosity 0
 Manage hot tub device properties. Get current values, set new values, or list all properties at once.
 
 **Available Properties**
-
 | Property Name | Read | Write | Valid Values |
 |---|---|---|---|
 | temperature-current | ✅ | ❌ | Number: 59-104 |
@@ -116,7 +128,7 @@ Manage application settings stored locally. Configure IP address and verbosity l
 **Examples:**
 
 ```bash
-# get the stored IP address
+# get the stored ip address
 asdc config get ip-address
 
 # set the IP address for your hot tub
@@ -132,7 +144,10 @@ asdc config list
 ## Example Workflow
 
 ```bash
-# first time setup - save your hot tub IP address
+# first time setup - find your hot tubs ip address
+asdc discover
+
+# save your hot tubs ip address to avoid repetitive command line flags
 asdc config set ip-address 192.168.1.100
 
 # set logging output to silent
