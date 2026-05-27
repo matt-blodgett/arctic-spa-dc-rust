@@ -1,7 +1,7 @@
 use clap::ValueEnum;
 
-use crate::asdc;
 use crate::proto;
+use crate::core::net::{MessageType, ProtoMessage, NetworkClient};
 
 
 #[derive(Copy, Clone, ValueEnum, Debug)]
@@ -348,7 +348,7 @@ fn string_to_i32(value: &String, min: i32, max: i32) -> Result<i32, Box<dyn std:
 }
 
 
-fn device_property_name_to_message_type(property_name: DevicePropertyNameGet) -> asdc::MessageType {
+fn device_property_name_to_message_type(property_name: DevicePropertyNameGet) -> MessageType {
     match property_name {
         DevicePropertyNameGet::TemperatureCurrent
         | DevicePropertyNameGet::TempCurrent
@@ -377,18 +377,18 @@ fn device_property_name_to_message_type(property_name: DevicePropertyNameGet) ->
         | DevicePropertyNameGet::Fogger
         | DevicePropertyNameGet::Sds
         | DevicePropertyNameGet::Yess => {
-            asdc::MessageType::Live
+            MessageType::Live
         },
         DevicePropertyNameGet::Orp
         | DevicePropertyNameGet::Ph100
         | DevicePropertyNameGet::OrpColor
         | DevicePropertyNameGet::PhColor => {
-            asdc::MessageType::OnzenLive
+            MessageType::OnzenLive
         }
     }
 }
-fn get_message_value_from_property(message_type: asdc::MessageType, message: asdc::ProtoMessage, property_name: DevicePropertyNameGet) -> Result<String, Box<dyn std::error::Error>> {
-    if message_type == asdc::MessageType::Live {
+fn get_message_value_from_property(message_type: MessageType, message: ProtoMessage, property_name: DevicePropertyNameGet) -> Result<String, Box<dyn std::error::Error>> {
+    if message_type == MessageType::Live {
         let message_live = message.as_live().ok_or("Failed to convert message to Live")?;
         match property_name {
             DevicePropertyNameGet::TemperatureCurrent
@@ -427,7 +427,7 @@ fn get_message_value_from_property(message_type: asdc::MessageType, message: asd
                 return Err(format!("unsupported property for Live message type: {:?}", property_name.as_name()).into());
             }
         }
-    } else if message_type == asdc::MessageType::OnzenLive {
+    } else if message_type == MessageType::OnzenLive {
         let message_onzen_live = message.as_onzen_live().ok_or("Failed to convert message to OnzenLive")?;
         match property_name {
             DevicePropertyNameGet::Orp => { return Ok(i32_to_string(message_onzen_live.orp())); }
@@ -443,7 +443,7 @@ fn get_message_value_from_property(message_type: asdc::MessageType, message: asd
 
     Err(format!("unsupported message type: {:?}", message_type).into())
 }
-fn get_message_value(network_client: &mut asdc::NetworkClient, property_name: DevicePropertyNameGet) -> Result<String, Box<dyn std::error::Error>> {
+fn get_message_value(network_client: &mut NetworkClient, property_name: DevicePropertyNameGet) -> Result<String, Box<dyn std::error::Error>> {
     let message_type = device_property_name_to_message_type(property_name);
     let message = network_client.request_message_and_await_response(message_type)?;
     let value = get_message_value_from_property(message_type, message, property_name)?;
@@ -452,7 +452,7 @@ fn get_message_value(network_client: &mut asdc::NetworkClient, property_name: De
 
 pub fn get_device_property_value(ip_address: &str, property_name: DevicePropertyNameGet) -> Result<String, Box<dyn std::error::Error>> {
     log::debug!("read device property value {:?}", property_name.as_name());
-    let mut network_client = asdc::NetworkClient::connect_to(ip_address)?;
+    let mut network_client = NetworkClient::connect_to(ip_address)?;
     let value = get_message_value(&mut network_client, property_name)?;
     log::info!("successfully read device property value {:?}={:?}", property_name.as_name(), value);
     Ok(value)
@@ -461,7 +461,7 @@ pub fn display_device_property_value(property_name: DevicePropertyNameGet, value
     println!("device value: {:?} = {:?}", property_name.as_name(), value);
 }
 pub fn get_and_display_all_device_properties(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let mut network_client = asdc::NetworkClient::connect_to(ip_address)?;
+    let mut network_client = NetworkClient::connect_to(ip_address)?;
 
     let all_get_properties = [
         DevicePropertyNameGet::TemperatureCurrent,
@@ -504,7 +504,7 @@ pub fn get_and_display_all_device_properties(ip_address: &str) -> Result<(), Box
 
 
 fn send_and_log(
-    network_client: &mut asdc::NetworkClient,
+    network_client: &mut NetworkClient,
     property_name: DevicePropertyNameSet,
     value: &String,
     command_message: proto::Command::Command,
@@ -516,7 +516,7 @@ fn send_and_log(
 pub fn set_device_property_value(ip_address: &str, property_name: DevicePropertyNameSet, value: &String) -> Result<(), Box<dyn std::error::Error>> {
     log::debug!("write device property value {:?}={:?}", property_name.as_name(), value);
 
-    let mut network_client = asdc::NetworkClient::connect_to(ip_address)?;
+    let mut network_client = NetworkClient::connect_to(ip_address)?;
     let mut command_message = proto::Command::Command::new();
 
     match property_name {

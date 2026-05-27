@@ -4,36 +4,36 @@
 
 use std::{io::Error, path::Path};
 
-use crate::asdc;
 use crate::proto;
+use crate::core::net::{MessageType, ProtoMessage, NetworkClient};
 
 
-pub fn get_message(ip_address: &str, message_type: asdc::MessageType) -> Result<asdc::ProtoMessage, Error> {
+pub fn get_message(ip_address: &str, message_type: MessageType) -> Result<ProtoMessage, Error> {
     log::info!("querying host {:?} for message type {:?}", ip_address, message_type);
-    let mut network_client = asdc::NetworkClient::new();
+    let mut network_client = NetworkClient::new();
     network_client.connect(ip_address)?;
     let message = network_client.request_message_and_await_response(message_type)?;
     Ok(message)
 }
 
 
-pub fn display_message(message_type: asdc::MessageType, message: asdc::ProtoMessage, output_path: Option<&Path>) -> () {
+pub fn display_message(message_type: MessageType, message: ProtoMessage, output_path: Option<&Path>) -> () {
     log::info!("outputting message data");
 
     let output_string = match message {
-        asdc::ProtoMessage::Live(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        asdc::ProtoMessage::Command(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        asdc::ProtoMessage::Settings(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        asdc::ProtoMessage::Configuration(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        asdc::ProtoMessage::Peak(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        asdc::ProtoMessage::Clock(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        asdc::ProtoMessage::Information(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        asdc::ProtoMessage::Error(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        asdc::ProtoMessage::Router(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        asdc::ProtoMessage::Filter(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        asdc::ProtoMessage::Peripheral(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        asdc::ProtoMessage::OnzenLive(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        asdc::ProtoMessage::OnzenSettings(msg) => protobuf::text_format::print_to_string_pretty(&msg),
+        ProtoMessage::Live(msg) => protobuf::text_format::print_to_string_pretty(&msg),
+        ProtoMessage::Command(msg) => protobuf::text_format::print_to_string_pretty(&msg),
+        ProtoMessage::Settings(msg) => protobuf::text_format::print_to_string_pretty(&msg),
+        ProtoMessage::Configuration(msg) => protobuf::text_format::print_to_string_pretty(&msg),
+        ProtoMessage::Peak(msg) => protobuf::text_format::print_to_string_pretty(&msg),
+        ProtoMessage::Clock(msg) => protobuf::text_format::print_to_string_pretty(&msg),
+        ProtoMessage::Information(msg) => protobuf::text_format::print_to_string_pretty(&msg),
+        ProtoMessage::Error(msg) => protobuf::text_format::print_to_string_pretty(&msg),
+        ProtoMessage::Router(msg) => protobuf::text_format::print_to_string_pretty(&msg),
+        ProtoMessage::Filter(msg) => protobuf::text_format::print_to_string_pretty(&msg),
+        ProtoMessage::Peripheral(msg) => protobuf::text_format::print_to_string_pretty(&msg),
+        ProtoMessage::OnzenLive(msg) => protobuf::text_format::print_to_string_pretty(&msg),
+        ProtoMessage::OnzenSettings(msg) => protobuf::text_format::print_to_string_pretty(&msg),
     };
 
     match output_path {
@@ -60,7 +60,7 @@ pub fn display_message(message_type: asdc::MessageType, message: asdc::ProtoMess
 }
 
 
-pub fn test_display_message(message_type: asdc::MessageType, output_path: Option<&Path>) {
+pub fn test_display_message(message_type: MessageType, output_path: Option<&Path>) {
     log::info!("testing mode enabled - using mock data for message_type {:?}", message_type);
 
     let mut msg = proto::Live::Live::new();
@@ -97,8 +97,8 @@ pub fn test_display_message(message_type: asdc::MessageType, output_path: Option
     msg.set_temperature_setpoint_fahrenheit(104);
     msg.set_yess(false);
 
-    let msg_wrapped = asdc::ProtoMessage::Live(msg);
+    let msg_wrapped = ProtoMessage::Live(msg);
 
-    display_message(asdc::MessageType::Live, msg_wrapped, output_path.as_deref());
+    display_message(MessageType::Live, msg_wrapped, output_path.as_deref());
     return;
 }

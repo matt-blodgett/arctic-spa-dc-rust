@@ -8,14 +8,10 @@ use std::path::PathBuf;
 use clap::{Parser, Subcommand, ValueEnum};
 
 mod proto;
-mod asdc;
-mod cmd_discover;
-mod cmd_query;
-mod cmd_device;
-mod cmd_config;
-mod discovery;
-use crate::cmd_config::AppConfigManager;
-use cmd_device::{DevicePropertyNameGet, DevicePropertyNameSet};
+mod core;
+mod commands;
+
+use commands::device::{DevicePropertyNameGet, DevicePropertyNameSet};
 
 
 const DEFAULT_LOGGING_LEVEL: u8 = 0;
@@ -107,21 +103,21 @@ enum MessageName {
     OnzenSettings
 }
 
-impl From<MessageName> for asdc::MessageType {
+impl From<MessageName> for core::net::MessageType {
     fn from(value: MessageName) -> Self {
         match value {
-            MessageName::Live => asdc::MessageType::Live,
-            MessageName::Settings => asdc::MessageType::Settings,
-            MessageName::Configuration => asdc::MessageType::Configuration,
-            MessageName::Peak => asdc::MessageType::Peak,
-            MessageName::Clock => asdc::MessageType::Clock,
-            MessageName::Information => asdc::MessageType::Information,
-            MessageName::Error => asdc::MessageType::Error,
-            MessageName::Router => asdc::MessageType::Router,
-            MessageName::Filter => asdc::MessageType::Filter,
-            MessageName::Peripheral => asdc::MessageType::Peripheral,
-            MessageName::OnzenLive => asdc::MessageType::OnzenLive,
-            MessageName::OnzenSettings => asdc::MessageType::OnzenSettings,
+            MessageName::Live => core::net::MessageType::Live,
+            MessageName::Settings => core::net::MessageType::Settings,
+            MessageName::Configuration => core::net::MessageType::Configuration,
+            MessageName::Peak => core::net::MessageType::Peak,
+            MessageName::Clock => core::net::MessageType::Clock,
+            MessageName::Information => core::net::MessageType::Information,
+            MessageName::Error => core::net::MessageType::Error,
+            MessageName::Router => core::net::MessageType::Router,
+            MessageName::Filter => core::net::MessageType::Filter,
+            MessageName::Peripheral => core::net::MessageType::Peripheral,
+            MessageName::OnzenLive => core::net::MessageType::OnzenLive,
+            MessageName::OnzenSettings => core::net::MessageType::OnzenSettings,
         }
     }
 }
@@ -265,12 +261,12 @@ fn main () {
     // check if config file location is specified explicitly in cli args
     let mut config = if let Some(path) = cli.config_path.as_ref() {
         log::debug!("config_path: {}", path.display());
-        AppConfigManager::load_from_path(path)
+        core::config::AppConfigManager::load_from_path(path)
             .unwrap_or_else(|e| {
                 fatal_error_and_exit(&format!("failed to load config from specified path: {}", e));
             })
     } else {
-        AppConfigManager::load_or_create()
+        core::config::AppConfigManager::load_or_create()
             .unwrap_or_else(|e| {
                 fatal_error_and_exit(&format!("failed to load or create config: {}", e));
             })
@@ -299,9 +295,9 @@ fn main () {
 
     match &cli.command {
         Commands::Discover { update_config } => {
-            let mut devices = cmd_discover::discover_devices();
+            let mut devices = commands::discover::discover_devices();
 
-            cmd_discover::display_devices(&devices);
+            commands::discover::display_devices(&devices);
 
             if *update_config {
                 if devices.is_empty() {
@@ -327,7 +323,7 @@ fn main () {
         },
         Commands::Query { message_name, output_path } => {
             if testing_mode {
-                cmd_query::test_display_message((*message_name).into(), output_path.as_deref());
+                commands::query::test_display_message((*message_name).into(), output_path.as_deref());
                 return;
             }
 
@@ -335,12 +331,12 @@ fn main () {
                 fatal_error_and_exit("no ip address specified; aborting");
             }
 
-            let message_type: asdc::MessageType = (*message_name).into();
-            let message = cmd_query::get_message(&ip_address, message_type)
+            let message_type: core::net::MessageType = (*message_name).into();
+            let message = commands::query::get_message(&ip_address, message_type)
                 .unwrap_or_else(|e| {
                     fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
                 });
-            cmd_query::display_message(message_type, message, output_path.as_deref());
+            commands::query::display_message(message_type, message, output_path.as_deref());
         },
         Commands::Device { command } => {
             if ip_address.is_empty() {
@@ -348,20 +344,20 @@ fn main () {
             }
             match command {
                 DeviceCommands::Get { property_name } => {
-                    let value = cmd_device::get_device_property_value(&ip_address, *property_name)
+                    let value = commands::device::get_device_property_value(&ip_address, *property_name)
                         .unwrap_or_else(|e| {
                             fatal_error_and_exit(&format!("failed to get device property value: {:?}", e));
                         });
-                    cmd_device::display_device_property_value(*property_name, &value);
+                    commands::device::display_device_property_value(*property_name, &value);
                 },
                 DeviceCommands::Set { property_name, value } => {
-                    cmd_device::set_device_property_value(&ip_address, *property_name, value)
+                    commands::device::set_device_property_value(&ip_address, *property_name, value)
                         .unwrap_or_else(|e| {
                             fatal_error_and_exit(&format!("failed to set device property value: {:?}", e));
                         });
                 },
                 DeviceCommands::List {  } => {
-                    cmd_device::get_and_display_all_device_properties(&ip_address)
+                    commands::device::get_and_display_all_device_properties(&ip_address)
                         .unwrap_or_else(|e| {
                             fatal_error_and_exit(&format!("failed to display all device properties: {:?}", e));
                         });

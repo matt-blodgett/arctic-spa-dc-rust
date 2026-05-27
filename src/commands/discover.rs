@@ -1,4 +1,4 @@
-use crate::discovery;
+use crate::core::discovery;
 
 
 pub fn discover_devices() -> Vec<String> {
