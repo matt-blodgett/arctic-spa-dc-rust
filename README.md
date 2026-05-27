@@ -22,7 +22,7 @@ Throughout this documentation, `asdc` refers to the built binary. You can add it
 
 ## Usage
 
-Below is a brief description of each currently available command.
+Below is a brief walkthrough of each currently available command.
 
 ### Discover
 
