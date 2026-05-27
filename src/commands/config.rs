@@ -4,7 +4,7 @@ use clap::ValueEnum;
 // #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 #[derive(ValueEnum, Copy, Clone, Debug)]
 pub enum ConfigPropertyName {
-    /// IP Address
+    /// Hot tub IP Address
     IpAddress,
     /// Verbosity
     Verbosity
