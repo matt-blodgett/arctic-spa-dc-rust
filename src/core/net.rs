@@ -15,7 +15,6 @@ const HEADER_PREAMBLE: [u8; 4] = [171, 173, 29, 58];
 const HEADER_MAGIC: i32 = -1414718150;
 
 
-// #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum MessageType {
     Live = 0,
@@ -332,7 +331,7 @@ impl NetworkClient {
         }
     }
 
-    pub fn connect_to(ip_address: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn connect_to(ip_address: &str) -> Result<Self, Error> {
         let mut client = Self::new();
         client.connect(ip_address)?;
         Ok(client)

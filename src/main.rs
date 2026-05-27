@@ -1,16 +1,17 @@
 #![allow(dead_code)]
-#![allow(unused_imports)]
 
 
 use std::io::Write;
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 
 mod proto;
 mod core;
 mod commands;
 
+use commands::query::QueryMessageName;
+use commands::config::ConfigPropertyName;
 use commands::device::{DevicePropertyNameGet, DevicePropertyNameSet};
 
 
@@ -23,15 +24,15 @@ const DEFAULT_LOGGING_LEVEL: u8 = 0;
 #[command(about = "Interact with your Arctic Spa brand hot tub", long_about = None)]
 struct Cli {
     /// Load settings from a specific config file
-    #[arg(short, long, value_name = "FILE_PATH")]
+    #[arg(long, value_name = "FILE_PATH", global = true)]
     config_path: Option<PathBuf>,
 
     /// Testing mode (do not connect over TCP, use mock data)
-    #[arg(short = 'T', long, global = true)]
+    #[arg(long, global = true)]
     test: bool,
 
     /// Logging level: 0=OFF, 1=ERROR, 2=WARN, 3=INFO, 4=DEBUG, 5=ALL
-    #[arg(short, long, value_name = "LOGGING_LEVEL", global = true)]
+    #[arg(short = 'v', long, value_name = "LOGGING_LEVEL", global = true)]
     verbosity: Option<u8>,
 
     /// Hot tub IP Address
@@ -55,7 +56,7 @@ enum Commands {
     Query {
         /// Message type to query
         #[arg(value_enum)]
-        message_name: MessageName,
+        message_name: QueryMessageName,
 
         /// Optional output file path to write the message data to; if not specified, will print to stdout
         #[arg(short, long, value_name = "OUTPUT_FILE_PATH")]
@@ -70,55 +71,6 @@ enum Commands {
     Config {
         #[command(subcommand)]
         command: ConfigCommands,
-    }
-}
-
-
-// #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
-#[derive(Copy, Clone, ValueEnum, Debug)]
-enum MessageName {
-    /// Status of temperatures, pumps, blowers, lights, filters, ozone, etc
-    Live,
-    /// Settings for filtration, onzen, ozone, minimum and maximum values, etc
-    Settings,
-    /// Capabilities of the hot tub such as pump layouts and installed features
-    Configuration,
-    /// Settings for power draw management
-    Peak,
-    /// Device system clock information
-    Clock,
-    /// Serial numbers, firmware and hardware versions, etc
-    Information,
-    /// Error status indicators
-    Error,
-    /// Router details
-    Router,
-    /// Filter maintenance information
-    Filter,
-    /// Information about installed peripheral device
-    Peripheral,
-    /// Status of orp and ph levels, electrode details, etc
-    OnzenLive,
-    /// Definitions for minimum and maximum thresholds of OnzenLive statuses
-    OnzenSettings
-}
-
-impl From<MessageName> for core::net::MessageType {
-    fn from(value: MessageName) -> Self {
-        match value {
-            MessageName::Live => core::net::MessageType::Live,
-            MessageName::Settings => core::net::MessageType::Settings,
-            MessageName::Configuration => core::net::MessageType::Configuration,
-            MessageName::Peak => core::net::MessageType::Peak,
-            MessageName::Clock => core::net::MessageType::Clock,
-            MessageName::Information => core::net::MessageType::Information,
-            MessageName::Error => core::net::MessageType::Error,
-            MessageName::Router => core::net::MessageType::Router,
-            MessageName::Filter => core::net::MessageType::Filter,
-            MessageName::Peripheral => core::net::MessageType::Peripheral,
-            MessageName::OnzenLive => core::net::MessageType::OnzenLive,
-            MessageName::OnzenSettings => core::net::MessageType::OnzenSettings,
-        }
     }
 }
 
@@ -164,24 +116,6 @@ enum ConfigCommands {
     },
     /// Display all config properties
     List { }
-}
-
-// #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
-#[derive(Copy, Clone, ValueEnum, Debug)]
-enum ConfigPropertyName {
-    /// IP Address
-    IpAddress,
-    /// Verbosity
-    Verbosity
-}
-
-impl ConfigPropertyName {
-    fn as_str(&self) -> &str {
-        match self {
-            ConfigPropertyName::IpAddress => "ip_address",
-            ConfigPropertyName::Verbosity => "verbosity",
-        }
-    }
 }
 
 
@@ -332,11 +266,11 @@ fn main () {
             }
 
             let message_type: core::net::MessageType = (*message_name).into();
-            let message = commands::query::get_message(&ip_address, message_type)
+            let proto_message = commands::query::get_message(&ip_address, message_type)
                 .unwrap_or_else(|e| {
                     fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
                 });
-            commands::query::display_message(message_type, message, output_path.as_deref());
+            commands::query::display_message(message_type, proto_message, output_path.as_deref());
         },
         Commands::Device { command } => {
             if ip_address.is_empty() {

@@ -1,17 +1,65 @@
 #![allow(dead_code)]
-#![allow(unused_imports)]
 
 
-use std::{io::Error, path::Path};
+use clap::ValueEnum;
+
+use std::io::Error;
+use std::path::Path;
 
 use crate::proto;
 use crate::core::net::{MessageType, ProtoMessage, NetworkClient};
 
 
+#[derive(ValueEnum, Copy, Clone, Debug)]
+pub enum QueryMessageName {
+    /// Status of temperatures, pumps, blowers, lights, filters, ozone, etc
+    Live,
+    /// Settings for filtration, onzen, ozone, minimum and maximum values, etc
+    Settings,
+    /// Capabilities of the hot tub such as pump layouts and installed features
+    Configuration,
+    /// Settings for power draw management
+    Peak,
+    /// Device system clock information
+    Clock,
+    /// Serial numbers, firmware and hardware versions, etc
+    Information,
+    /// Error status indicators
+    Error,
+    /// Router details
+    Router,
+    /// Filter maintenance information
+    Filter,
+    /// Information about installed peripheral device
+    Peripheral,
+    /// Status of orp and ph levels, electrode details, etc
+    OnzenLive,
+    /// Definitions for minimum and maximum thresholds of OnzenLive statuses
+    OnzenSettings
+}
+
+impl From<QueryMessageName> for MessageType {
+    fn from(value: QueryMessageName) -> Self {
+        match value {
+            QueryMessageName::Live => MessageType::Live,
+            QueryMessageName::Settings => MessageType::Settings,
+            QueryMessageName::Configuration => MessageType::Configuration,
+            QueryMessageName::Peak => MessageType::Peak,
+            QueryMessageName::Clock => MessageType::Clock,
+            QueryMessageName::Information => MessageType::Information,
+            QueryMessageName::Error => MessageType::Error,
+            QueryMessageName::Router => MessageType::Router,
+            QueryMessageName::Filter => MessageType::Filter,
+            QueryMessageName::Peripheral => MessageType::Peripheral,
+            QueryMessageName::OnzenLive => MessageType::OnzenLive,
+            QueryMessageName::OnzenSettings => MessageType::OnzenSettings,
+        }
+    }
+}
+
 pub fn get_message(ip_address: &str, message_type: MessageType) -> Result<ProtoMessage, Error> {
     log::info!("querying host {:?} for message type {:?}", ip_address, message_type);
-    let mut network_client = NetworkClient::new();
-    network_client.connect(ip_address)?;
+    let mut network_client = NetworkClient::connect_to(ip_address)?;
     let message = network_client.request_message_and_await_response(message_type)?;
     Ok(message)
 }

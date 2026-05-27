@@ -4,7 +4,7 @@ use crate::proto;
 use crate::core::net::{MessageType, ProtoMessage, NetworkClient};
 
 
-#[derive(Copy, Clone, ValueEnum, Debug)]
+#[derive(ValueEnum, Copy, Clone, Debug)]
 pub enum DevicePropertyNameGet {
     /// READONLY: Current water temperature in Fahrenheit
     #[value(name = "temperature-current")]
@@ -131,7 +131,7 @@ impl DevicePropertyNameGet {
 }
 
 
-#[derive(Copy, Clone, ValueEnum, Debug)]
+#[derive(ValueEnum, Copy, Clone, Debug)]
 pub enum DevicePropertyNameSet {
     /// Temperature setpoint in Fahrenheit (number: min 59, max 104)
     #[value(name = "temperature-setpoint")]
