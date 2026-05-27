@@ -387,7 +387,7 @@ fn device_property_name_to_message_type(property_name: DevicePropertyNameGet) ->
         }
     }
 }
-fn get_message_value_from_property(message_type: MessageType, message: ProtoMessage, property_name: DevicePropertyNameGet) -> Result<String, Box<dyn std::error::Error>> {
+fn get_message_value_from_property(message_type: MessageType, message: &ProtoMessage, property_name: DevicePropertyNameGet) -> Result<String, Box<dyn std::error::Error>> {
     if message_type == MessageType::Live {
         let message_live = message.as_live().ok_or("Failed to convert message to Live")?;
         match property_name {
@@ -446,7 +446,7 @@ fn get_message_value_from_property(message_type: MessageType, message: ProtoMess
 fn get_message_value(network_client: &mut NetworkClient, property_name: DevicePropertyNameGet) -> Result<String, Box<dyn std::error::Error>> {
     let message_type = device_property_name_to_message_type(property_name);
     let message = network_client.request_message_and_await_response(message_type)?;
-    let value = get_message_value_from_property(message_type, message, property_name)?;
+    let value = get_message_value_from_property(message_type, &message, property_name)?;
     Ok(value)
 }
 
@@ -461,9 +461,14 @@ pub fn display_device_property_value(property_name: DevicePropertyNameGet, value
     println!("device value: {:?} = {:?}", property_name.as_name(), value);
 }
 pub fn get_and_display_all_device_properties(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
+    println!("displaying all device properties");
+
     let mut network_client = NetworkClient::connect_to(ip_address)?;
 
-    let all_get_properties = [
+    let message_live = network_client.request_message_and_await_response(MessageType::Live)?;
+    let message_onzen_live = network_client.request_message_and_await_response(MessageType::OnzenLive)?;
+
+    let all_properties_live = [
         DevicePropertyNameGet::TemperatureCurrent,
         DevicePropertyNameGet::TemperatureSetpoint,
         DevicePropertyNameGet::Pump1,
@@ -487,15 +492,21 @@ pub fn get_and_display_all_device_properties(ip_address: &str) -> Result<(), Box
         DevicePropertyNameGet::Fogger,
         DevicePropertyNameGet::Sds,
         DevicePropertyNameGet::Yess,
+    ];
+    let all_properties_onzen_live = [
         DevicePropertyNameGet::Orp,
         DevicePropertyNameGet::Ph100,
         DevicePropertyNameGet::OrpColor,
         DevicePropertyNameGet::PhColor
     ];
 
-    println!("displaying all device properties");
-    for property in all_get_properties.iter() {
-        let value = get_message_value(&mut network_client, *property)?;
+    for property in all_properties_live.iter() {
+        let value = get_message_value_from_property(MessageType::Live, &message_live, *property)?;
+        display_device_property_value(*property, &value);
+    }
+
+    for property in all_properties_onzen_live.iter() {
+        let value = get_message_value_from_property(MessageType::OnzenLive, &message_onzen_live, *property)?;
         display_device_property_value(*property, &value);
     }
 
