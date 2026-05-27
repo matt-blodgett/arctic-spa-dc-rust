@@ -14,6 +14,22 @@ pub struct AppConfig {
     pub verbosity: Option<u8>
 }
 
+impl AppConfig {
+    pub fn new(ip_address: String, verbosity: Option<u8>) -> Self {
+        Self {
+            ip_address,
+            verbosity,
+        }
+    }
+
+    pub fn default() -> Self {
+        Self {
+            ip_address: String::new(),
+            verbosity: Some(0),
+        }
+    }
+}
+
 
 pub struct AppConfigManager {
     pub data: AppConfig,
@@ -49,29 +65,24 @@ impl AppConfigManager {
 
         // if config file doesn't exist, create it from template
         if !config_path.exists() {
-            log::debug!("config file not found at {:#?}, creating from template", config_path.display());
-            // let template_config = json!({
-            //     "ip_address": "",
-            //     "verbosity": 5
-            // });
-            let template_config_str = r#"
-                {
-                    "ip_address": "192.168.0.1",
-                    "verbosity": 5
-                }
-            "#;
-            let mut template_config: AppConfig = serde_json::from_str(template_config_str).unwrap();
+            log::debug!("config file not found at {:#?}, creating with default values", config_path.display());
 
-            template_config.ip_address = "192.168.0.1".to_string();
+            // let template_config_str = r#"
+            //     {
+            //         "ip_address": "",
+            //         "verbosity": 0
+            //     }
+            // "#;
+            // let mut template_config: AppConfig = serde_json::from_str(template_config_str).unwrap();
+
+            let default_config = AppConfig::default();
 
             let file = std::fs::File::create(&config_path)?;
-            serde_json::to_writer_pretty(file, &template_config)?;
+            serde_json::to_writer_pretty(file, &default_config)?;
 
-            // let config_content = serde_json::to_string_pretty(&template_config)?;
-            // fs::write(&config_path, config_content)?;
             log::info!("created config file {:#?}", config_path.display());
             return Ok(Self {
-                data: template_config,
+                data: default_config,
                 path: config_path,
             });
         }
@@ -103,8 +114,8 @@ impl AppConfigManager {
 
     pub fn save(&self) -> Result<(), std::io::Error> {
         let file = std::fs::File::create(&self.path)?;
-        // let file = std::fs::File::create("output.json")?;
         serde_json::to_writer_pretty(file, &self.data)?;
+        log::trace!("config saved to {:#?}", self.path.display());
         Ok(())
     }
 
@@ -134,5 +145,12 @@ impl AppConfigManager {
 
     pub fn to_string_pretty(&self) -> Result<String, serde_json::Error> {
         Ok(serde_json::to_string_pretty(&self.data)?)
+    }
+
+    pub fn reset_to_defaults(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        self.data = AppConfig::default();
+        self.save()?;
+        log::trace!("config file reset to default values");
+        Ok(())
     }
 }

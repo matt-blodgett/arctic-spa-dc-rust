@@ -115,7 +115,9 @@ enum ConfigCommands {
         value: String,
     },
     /// Display all config properties
-    List { }
+    List { },
+    /// Overwrite config file with default values
+    Reset { },
 }
 
 
@@ -323,6 +325,13 @@ fn main () {
                         });
                     println!("displaying all config properties");
                     println!("{}", config_json_string);
+                },
+                ConfigCommands::Reset {  } => {
+                    config.reset_to_defaults()
+                        .unwrap_or_else(|e| {
+                            fatal_error_and_exit(&format!("failed to reset config: {:?}", e));
+                        });
+                    println!("config reset to default values");
                 }
             }
         },

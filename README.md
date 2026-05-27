@@ -141,6 +141,9 @@ asdc config set verbosity 3
 
 # list all config properties and current values
 asdc config list
+
+# reset config file with default values
+asdc config reset
 ```
 
 ## Example Workflow
