@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
 
-use clap::ValueEnum;
-
 use std::io::Error;
 use std::path::Path;
+
+use clap::ValueEnum;
 
 use crate::proto;
 use crate::core::net::{MessageType, ProtoMessage, NetworkClient};
