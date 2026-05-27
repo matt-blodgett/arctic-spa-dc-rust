@@ -9,9 +9,11 @@ use clap::{Parser, Subcommand, ValueEnum};
 
 mod proto;
 mod asdc;
+mod cmd_discover;
 mod cmd_query;
 mod cmd_device;
 mod cmd_config;
+mod discovery;
 use crate::cmd_config::AppConfigManager;
 use cmd_device::{DevicePropertyNameGet, DevicePropertyNameSet};
 
@@ -47,7 +49,13 @@ struct Cli {
 
 #[derive(Subcommand, Debug)]
 enum Commands {
-    /// Request protobuf messages from the device
+    /// Search the local network for hot tubs and display their IP addresses
+    Discover {
+        /// Update config file with first discovered device's IP address (overrides any existing IP address in config)
+        #[arg(long)]
+        update_config: bool,
+    },
+    /// Request protobuf messages from the hot tub device
     Query {
         /// Message type to query
         #[arg(value_enum)]
@@ -62,7 +70,7 @@ enum Commands {
         #[command(subcommand)]
         command: DeviceCommands,
     },
-    /// Store and retrieve application settings
+    /// Store and retrieve this application's settings
     Config {
         #[command(subcommand)]
         command: ConfigCommands,
@@ -249,7 +257,7 @@ fn main () {
     if let Some(verbosity) = cli.verbosity {
         init_logging(verbosity);
         logging_initialized = true;
-        log::debug!("logging initialized to level {}", log::max_level());
+        log::debug!("logging initialized: level={}", log::max_level());
     }
 
     log::info!("initializing config");
@@ -272,7 +280,7 @@ fn main () {
     if !logging_initialized {
         let verbosity = config.data.verbosity.unwrap_or(DEFAULT_LOGGING_LEVEL);
         init_logging(verbosity);
-        log::debug!("logging initialized to level {}", log::max_level());
+        log::debug!("logging initialized: level={}", log::max_level());
     }
 
     log::info!("initializing app");
@@ -290,6 +298,33 @@ fn main () {
     log::info!("running command: {:?}", cli.command);
 
     match &cli.command {
+        Commands::Discover { update_config } => {
+            let mut devices = cmd_discover::discover_devices();
+
+            cmd_discover::display_devices(&devices);
+
+            if *update_config {
+                if devices.is_empty() {
+                    if log::log_enabled!(log::Level::Warn) {
+                        log::warn!("--update-config flag is set but no devices were discovered; config file will not be updated");
+                    } else {
+                         println!("--update-config flag is set but no devices were discovered; config file will not be updated");
+                    }
+                } else {
+                    let first_device_ip = devices.remove(0);
+                    log::info!("updating config with first discovered device's IP address: {:}", first_device_ip);
+                    println!("updating config with first discovered device's IP address: {:}", first_device_ip);
+
+                    config.set_value("ip_address", &first_device_ip)
+                        .unwrap_or_else(|e| {
+                            fatal_error_and_exit(&format!("failed to set config: {:?}", e));
+                        });
+
+                    log::info!("config updated successfully");
+                    println!("config updated successfully");
+                }
+            }
+        },
         Commands::Query { message_name, output_path } => {
             if testing_mode {
                 cmd_query::test_display_message((*message_name).into(), output_path.as_deref());

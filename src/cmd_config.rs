@@ -111,7 +111,7 @@ impl AppConfigManager {
     pub fn get_value(&self, key: &str) -> Result<Value, serde_json::Error> {
         let app_config_json = serde_json::to_value(&self.data)?;
         let value = serde_json::to_value(app_config_json[key].clone())?;
-        log::trace!("config get_value -> {:?} = {:?}", key, value);
+        log::trace!("config get_value: {:?}={:?}", key, value);
         Ok(value)
     }
 
@@ -127,7 +127,7 @@ impl AppConfigManager {
         self.data = serde_json::from_value(app_config_json)?;
         self.save()?;
 
-        log::trace!("config set_value -> {:?} = {:?}", key, value);
+        log::trace!("config set_value: {:?}={:?}", key, value);
 
         Ok(())
     }
