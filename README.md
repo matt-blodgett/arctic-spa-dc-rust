@@ -1,6 +1,8 @@
 # arctic-spa-dc-rust
 
-A Rust CLI tool to interact with your Arctic Spa brand hot tub. Query device information, get/set device properties, and manage application settings.
+A Rust CLI tool to interact with your Arctic Spa brand hot tub.
+
+Display connected devices, query device information, get/set device properties, and manage application settings.
 
 This is a Rust rewrite of the Python package [arctic-spa-dc](https://github.com/matt-blodgett/arctic-spa-dc).
 
