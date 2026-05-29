@@ -19,7 +19,7 @@ use commands::device::{DevicePropertyNameGet, DevicePropertyNameSet};
 #[command(version = "0.1.0")]
 #[command(about = "Interact with your Arctic Spa brand hot tub", long_about = None)]
 struct Cli {
-    /// Load settings from a specific config file
+    /// Specify a config file location
     #[arg(long, value_name = "FILE_PATH", global = true)]
     config_path: Option<PathBuf>,
 
