@@ -11,21 +11,21 @@ use serde::{Serialize, Deserialize};
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppConfig {
     pub ip_address: String,
-    pub verbosity: Option<u8>
+    pub log_level: Option<String>,
 }
 
 impl AppConfig {
-    pub fn new(ip_address: String, verbosity: Option<u8>) -> Self {
+    pub fn new(ip_address: String, log_level: Option<String>) -> Self {
         Self {
             ip_address,
-            verbosity,
+            log_level,
         }
     }
 
     pub fn default() -> Self {
         Self {
             ip_address: String::new(),
-            verbosity: Some(0),
+            log_level: Some("off".to_string()),
         }
     }
 }
@@ -70,7 +70,7 @@ impl AppConfigManager {
             // let template_config_str = r#"
             //     {
             //         "ip_address": "",
-            //         "verbosity": 0
+            //         "log_level": "off"
             //     }
             // "#;
             // let mut template_config: AppConfig = serde_json::from_str(template_config_str).unwrap();

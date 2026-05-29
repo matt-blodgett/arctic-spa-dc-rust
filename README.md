@@ -59,8 +59,8 @@ Request protobuf messages from the device. Returns information about device stat
 
 **Examples:**
 ```bash
-# query the OnzenLive protobuf message from the host ip with silent logging
-asdc query onzen-live --ip-address "192.168.0.1" --verbosity 0
+# query the OnzenLive protobuf message from the host ip with full logging output
+asdc query onzen-live --ip-address "192.168.0.1" --log-level trace
 ```
 
 ### Device
@@ -106,8 +106,8 @@ Manage hot tub device properties. Get current values, set new values, or list al
 # get the status of pump #1
 asdc device get pump-1
 
-# if pump #1 was "HIGH", try turning it to "OFF"
-asdc device set pump-1 off
+# if pump #1 was "OFF", try turning it to "HIGH"
+asdc device set pump-1 high
 
 # update the temperature setpoint
 asdc device set temperature-setpoint 104
@@ -121,11 +121,11 @@ asdc device list
 
 ### Config
 
-Manage application settings stored locally. Configure IP address and verbosity level to avoid repeating flags.
+Manage application settings stored locally to avoid repeating flags.
 
 **Available Properties:**
-- `ip-address` — The stored IP address for your hot tub
-- `verbosity` — The default logging level
+- `ip-address` — IP address for your hot tub
+- `log-level` — Logging output level
 
 **Examples:**
 
@@ -136,8 +136,8 @@ asdc config get ip-address
 # set the IP address for your hot tub
 asdc config set ip-address 192.168.1.100
 
-# set the default logging verbosity to INFO (3)
-asdc config set verbosity 3
+# set the logging output filter to INFO
+asdc config set log-level info
 
 # list all config properties and current values
 asdc config list
@@ -155,9 +155,6 @@ asdc discover
 # save your hot tubs ip address to avoid repetitive command line flags
 asdc config set ip-address 192.168.1.100
 
-# set logging output to silent
-asdc config set verbosity 0
-
 # check current temperature and setpoint
 asdc device get temperature-current
 asdc device get temperature-setpoint
@@ -167,6 +164,9 @@ asdc device set temperature-setpoint 100
 
 # turn on all jets and lights
 asdc device set all-on ON
+
+# view all logging output
+asdc config set log-level trace
 
 # query full device status
 asdc query live
@@ -178,8 +178,8 @@ asdc query information
 # get device configuration
 asdc query configuration
 
-# run commands with full logging
-asdc device list -v 5
+# run commands with silent log level override
+asdc device list --log-level trace
 ```
 
 ## Disclaimer

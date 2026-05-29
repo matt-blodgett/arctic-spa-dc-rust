@@ -6,15 +6,15 @@ use clap::ValueEnum;
 pub enum ConfigPropertyName {
     /// Hot tub IP Address
     IpAddress,
-    /// Verbosity
-    Verbosity
+    /// Log Level
+    LogLevel
 }
 
 impl ConfigPropertyName {
     pub fn as_str(&self) -> &str {
         match self {
             ConfigPropertyName::IpAddress => "ip_address",
-            ConfigPropertyName::Verbosity => "verbosity",
+            ConfigPropertyName::LogLevel => "log_level",
         }
     }
 }

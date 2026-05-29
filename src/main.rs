@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
 
-use std::io::Write;
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
@@ -13,9 +12,6 @@ mod commands;
 use commands::query::QueryMessageName;
 use commands::config::ConfigPropertyName;
 use commands::device::{DevicePropertyNameGet, DevicePropertyNameSet};
-
-
-const DEFAULT_LOGGING_LEVEL: u8 = 0;
 
 
 #[derive(Parser)]
@@ -31,9 +27,9 @@ struct Cli {
     #[arg(long, global = true)]
     test: bool,
 
-    /// Logging level: 0=OFF, 1=ERROR, 2=WARN, 3=INFO, 4=DEBUG, 5=ALL
-    #[arg(short = 'v', long, value_name = "LOGGING_LEVEL", global = true)]
-    verbosity: Option<u8>,
+    /// Logging level filter
+    #[arg(short = 'l', long, value_name = "LOG_LEVEL", global = true)]
+    log_level: Option<core::logging::LogLevel>,
 
     /// Hot tub IP Address
     #[arg(short, long, value_name = "IP_ADDRESS", global = true)]
@@ -121,58 +117,6 @@ enum ConfigCommands {
 }
 
 
-fn init_logging(logging_level: u8) -> () {
-    let level_filter = match logging_level {
-        0 => log::LevelFilter::Off,
-        1 => log::LevelFilter::Error,
-        2 => log::LevelFilter::Warn,
-        3 => log::LevelFilter::Info,
-        4 => log::LevelFilter::Debug,
-        5 => log::LevelFilter::Trace,
-        _ => log::LevelFilter::Off
-    };
-
-    env_logger::Builder::new()
-        .format(|buf, record| {
-            // https://docs.rs/log/0.4.29/log/struct.Record.html
-
-            // writeln!(
-            //     buf,
-            //     "[{} | {}] {}",
-            //     buf.timestamp(),
-            //     record.level(),
-            //     record.args()
-            // )
-
-            // writeln!(
-            //     buf,
-            //     "[{} | {} | {}] {}",
-            //     buf.timestamp(),
-            //     record.target(),
-            //     record.level(),
-            //     record.args()
-            // )
-
-            let mut level = record.level().to_string();
-            if level.len() == 4 {
-                level += " ";
-            }
-
-            writeln!(
-                buf,
-                "[{} | {} | {}:{}] {}",
-                buf.timestamp(),
-                level,
-                record.file().unwrap_or(""),
-                record.line().unwrap_or(0),
-                record.args()
-            )
-        })
-        .filter_level(level_filter)
-        .init();
-}
-
-
 fn fatal_error_and_exit(message: &str) -> ! {
     log::error!("{}", message);
     eprintln!("{}", message);
@@ -185,9 +129,9 @@ fn main () {
 
     let mut logging_initialized = false;
 
-    // check cli args for verbosity (takes precedence over config file / env vars)
-    if let Some(verbosity) = cli.verbosity {
-        init_logging(verbosity);
+    // check cli args for log_level (takes precedence over config file / env vars)
+    if let Some(log_level) = cli.log_level {
+        core::logging::init_logging(log_level);
         logging_initialized = true;
         log::debug!("logging initialized: level={}", log::max_level());
     }
@@ -208,10 +152,13 @@ fn main () {
             })
     };
 
-    // if cli arg for verbosity is not present, logging is not initialized - check config file or use default value
+    // if cli arg for log_level is not present, logging is not initialized - check config file or use default value
     if !logging_initialized {
-        let verbosity = config.data.verbosity.unwrap_or(DEFAULT_LOGGING_LEVEL);
-        init_logging(verbosity);
+        let log_level = config.data.log_level
+            .as_deref()
+            .map(core::logging::LogLevel::from)
+            .unwrap_or(core::logging::DEFAULT_LOGGING_LEVEL);
+        core::logging::init_logging(log_level);
         log::debug!("logging initialized: level={}", log::max_level());
     }
 

@@ -57,6 +57,7 @@ impl From<QueryMessageName> for MessageType {
     }
 }
 
+
 pub fn get_message(ip_address: &str, message_type: MessageType) -> Result<ProtoMessage, Error> {
     log::info!("querying host {:?} for message type {:?}", ip_address, message_type);
     let mut network_client = NetworkClient::connect_to(ip_address)?;
