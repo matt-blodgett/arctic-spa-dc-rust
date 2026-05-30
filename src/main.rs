@@ -9,9 +9,9 @@ mod proto;
 mod core;
 mod commands;
 
+use commands::device::{DevicePropertyNameGet, DevicePropertyNameSet};
 use commands::query::QueryMessageName;
 use commands::config::ConfigPropertyName;
-use commands::device::{DevicePropertyNameGet, DevicePropertyNameSet};
 
 
 #[derive(Parser)]
@@ -48,6 +48,11 @@ enum Commands {
         #[arg(long)]
         update_config: bool,
     },
+    /// Primary hot tub functions
+    Device {
+        #[command(subcommand)]
+        command: DeviceCommands,
+    },
     /// Request protobuf messages from the hot tub device
     Query {
         /// Message type to query
@@ -57,11 +62,6 @@ enum Commands {
         /// Optional output file path to write the message data to; if not specified, will print to stdout
         #[arg(short, long, value_name = "OUTPUT_FILE_PATH")]
         output_path: Option<PathBuf>,
-    },
-    /// Primary hot tub functions
-    Device {
-        #[command(subcommand)]
-        command: DeviceCommands,
     },
     /// Store and retrieve this application's settings
     Config {
@@ -204,23 +204,6 @@ fn main () {
                 }
             }
         },
-        Commands::Query { message_name, output_path } => {
-            if testing_mode {
-                commands::query::test_display_message((*message_name).into(), output_path.as_deref());
-                return;
-            }
-
-            if ip_address.is_empty() {
-                fatal_error_and_exit("no ip address specified; aborting");
-            }
-
-            let message_type: core::net::MessageType = (*message_name).into();
-            let proto_message = commands::query::get_message(&ip_address, message_type)
-                .unwrap_or_else(|e| {
-                    fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
-                });
-            commands::query::display_message(message_type, proto_message, output_path.as_deref());
-        },
         Commands::Device { command } => {
             if ip_address.is_empty() {
                 fatal_error_and_exit("no ip address specified; aborting");
@@ -246,6 +229,23 @@ fn main () {
                         });
                 }
             }
+        },
+        Commands::Query { message_name, output_path } => {
+            if testing_mode {
+                commands::query::test_display_message((*message_name).into(), output_path.as_deref());
+                return;
+            }
+
+            if ip_address.is_empty() {
+                fatal_error_and_exit("no ip address specified; aborting");
+            }
+
+            let message_type: core::net::MessageType = (*message_name).into();
+            let proto_message = commands::query::get_message(&ip_address, message_type)
+                .unwrap_or_else(|e| {
+                    fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
+                });
+            commands::query::display_message(message_type, proto_message, output_path.as_deref());
         },
         Commands::Config { command } => {
             match command {

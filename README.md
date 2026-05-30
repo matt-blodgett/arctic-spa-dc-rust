@@ -39,30 +39,6 @@ asdc discover
 asdc discover --update-config
 ```
 
-### Query
-
-Request protobuf messages from the device. Returns information about device status and configuration.
-
-**Available Message Types:**
-- `live` — Status of temperatures, pumps, blowers, lights, filters, ozone, etc
-- `settings` — Settings for filtration, onzen, ozone, minimum and maximum values, etc
-- `configuration` — Capabilities of the hot tub such as pump layouts and installed features
-- `peak` — Settings for power draw management
-- `clock` — Device system clock information
-- `information` — Serial numbers, firmware and hardware versions, etc
-- `error` — Error status indicators
-- `router` — Router details
-- `filter` — Filter maintenance information
-- `peripheral` — Information about installed peripheral device
-- `onzen-live` — Status of orp and ph levels, electrode details, etc
-- `onzen-settings` — Definitions for minimum and maximum thresholds of OnzenLive statuses
-
-**Examples:**
-```bash
-# query the OnzenLive protobuf message from the host ip with full logging output
-asdc query onzen-live --ip-address "192.168.0.1" --log-level trace
-```
-
 ### Device
 
 Manage hot tub device properties. Get current values, set new values, or list all properties at once.
@@ -117,6 +93,30 @@ asdc device set all-on on
 
 # list all device properties and current values
 asdc device list
+```
+
+### Query
+
+Request protobuf messages from the device. Returns information about device status and configuration.
+
+**Available Message Types:**
+- `live` — Status of temperatures, pumps, blowers, lights, filters, ozone, etc
+- `settings` — Settings for filtration, onzen, ozone, minimum and maximum values, etc
+- `configuration` — Capabilities of the hot tub such as pump layouts and installed features
+- `peak` — Settings for power draw management
+- `clock` — Device system clock information
+- `information` — Serial numbers, firmware and hardware versions, etc
+- `error` — Error status indicators
+- `router` — Router details
+- `filter` — Filter maintenance information
+- `peripheral` — Information about installed peripheral device
+- `onzen-live` — Status of orp and ph levels, electrode details, etc
+- `onzen-settings` — Definitions for minimum and maximum thresholds of OnzenLive statuses
+
+**Examples:**
+```bash
+# query the OnzenLive protobuf message from the host ip with full logging output
+asdc query onzen-live --ip-address "192.168.0.1" --log-level trace
 ```
 
 ### Config
