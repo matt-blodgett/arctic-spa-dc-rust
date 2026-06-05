@@ -44,7 +44,7 @@ struct Cli {
 enum Commands {
     /// Search the local network for hot tubs and display their IP addresses
     Discover {
-        /// Update config file with first discovered device's IP address (overrides any existing IP address in config)
+        /// Update config file with first discovered hot tub's IP address (overrides any existing IP address in config)
         #[arg(long)]
         update_config: bool,
     },
@@ -53,7 +53,7 @@ enum Commands {
         #[command(subcommand)]
         command: DeviceCommands,
     },
-    /// Request protobuf messages from the hot tub device
+    /// Request protobuf messages from the hot tub
     Query {
         /// Message type to query
         #[arg(value_enum)]
@@ -62,6 +62,10 @@ enum Commands {
         /// Optional output file path to write the message data to; if not specified, will print to stdout
         #[arg(short, long, value_name = "OUTPUT_FILE_PATH")]
         output_path: Option<PathBuf>,
+    },
+    /// Continuously poll protobuf messages from the hot tub and write the data to a sqlite database
+    Poll {
+
     },
     /// Store and retrieve this application's settings
     Config {
@@ -246,6 +250,13 @@ fn main () {
                     fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
                 });
             commands::query::display_message(message_type, proto_message, output_path.as_deref());
+        },
+        Commands::Poll {  } => {
+            if ip_address.is_empty() {
+                fatal_error_and_exit("no ip address specified; aborting");
+            }
+
+            commands::poll::poll_device(&ip_address);
         },
         Commands::Config { command } => {
             match command {

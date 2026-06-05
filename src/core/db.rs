@@ -1,0 +1,1085 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
+
+
+use std::{fs, os::windows::process};
+use std::path::PathBuf;
+
+use protobuf::{Enum, Message, MessageDyn};
+use rusqlite::{Connection, Result, ToSql, params};
+
+
+use crate::proto;
+
+
+// copied from core::config::AppConfigManager for now
+// move to util module later
+fn default_db_dir() -> PathBuf {
+    if let Some(proj_dirs) = directories::ProjectDirs::from("", "", "arctic-spa-dc-rust") {
+        proj_dirs.data_dir().to_path_buf()
+    } else {
+        // fallback to current directory
+        PathBuf::from(".")
+    }
+}
+fn default_db_path() -> PathBuf {
+    default_db_dir().join("asdc.db")
+}
+fn load_or_create(path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    // create db directory if it doesn't exist
+    let db_dir = path.parent().unwrap();
+    if !db_dir.exists() {
+        log::debug!("creating db directory: {:#?}", db_dir.display());
+        fs::create_dir_all(db_dir)?;
+    }
+
+    // // if db file doesn't exist, create it from template
+    // if !db_path.exists() {
+    //     log::debug!("db file not found at {:#?}, creating with default values", db_path.display());
+
+    //     let file = std::fs::File::create(&db_path)?;
+
+    //     log::info!("created db file {:#?}", db_path.display());
+    //     log::info!("{:}", file.metadata()?.len());
+    // }
+
+
+    // XXX: reset db for prototyping, delete if exists
+    if path.exists() {
+        log::debug!("db file found at {:#?}, deleting for prototyping", path.display());
+        fs::remove_file(path)?;
+    }
+
+
+    Ok(())
+}
+
+
+pub struct DatabaseClient {
+    path: PathBuf,
+    conn: Connection,
+    process_run_id: Option<i64>,
+    connection_session_id: Option<i64>,
+}
+
+impl DatabaseClient {
+    pub fn open(path: Option<&PathBuf>) -> Result<Self, Box<dyn std::error::Error>> {
+        let db_path = path.unwrap_or(&default_db_path()).to_path_buf();
+        load_or_create(&db_path)?;
+
+        let conn = Connection::open(&db_path)?;
+
+        let mut client = Self {
+            path: db_path,
+            conn,
+            process_run_id: None,
+            connection_session_id: None,
+        };
+
+        client.create_tables()?;
+        client.create_process_run()?;
+
+        Ok(client)
+    }
+
+    fn create_tables(&mut self) -> Result<(), rusqlite::Error> {
+        let sql_create_table_process_run = r#"
+            CREATE TABLE "process_run" (
+                "id" INTEGER PRIMARY KEY,
+                "created_at" DATETIME
+            )
+        "#;
+        let sql_create_table_connection_session = r#"
+            CREATE TABLE "connection_session" (
+                "id" INTEGER PRIMARY KEY,
+                "created_at" DATETIME,
+                "process_run_id" INTEGER,
+
+                "host" TEXT,
+
+                FOREIGN KEY ("process_run_id")
+                    REFERENCES "process_run" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+            )
+        "#;
+        let sql_create_table_message_clock = r#"
+            CREATE TABLE "message_clock" (
+                "id" INTEGER PRIMARY KEY,
+                "created_at" DATETIME,
+                "process_run_id" INTEGER,
+                "connection_session_id" INTEGER,
+                "message_received_at" DATETIME,
+
+                "year" INTEGER,
+                "month" INTEGER,
+                "day" INTEGER,
+                "hour" INTEGER,
+                "minute" INTEGER,
+                "second" INTEGER,
+
+                FOREIGN KEY ("process_run_id")
+                    REFERENCES "process_run" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+
+                FOREIGN KEY ("connection_session_id")
+                    REFERENCES "connection_session" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+            )
+        "#;
+        let sql_create_table_message_configuration = r#"
+            CREATE TABLE "message_configuration" (
+                "id" INTEGER PRIMARY KEY,
+                "created_at" DATETIME,
+                "process_run_id" INTEGER,
+                "connection_session_id" INTEGER,
+                "message_received_at" DATETIME,
+
+                "pump1" BOOLEAN,
+                "pump2" BOOLEAN,
+                "pump3" BOOLEAN,
+                "pump4" BOOLEAN,
+                "pump5" BOOLEAN,
+                "blower1" BOOLEAN,
+                "blower2" BOOLEAN,
+                "lights" BOOLEAN,
+                "stereo" BOOLEAN,
+                "heater1" BOOLEAN,
+                "heater2" BOOLEAN,
+                "filter" BOOLEAN,
+                "onzen" BOOLEAN,
+                "ozone_peak_1" BOOLEAN,
+                "ozone_peak_2" BOOLEAN,
+                "exhaust_fan" BOOLEAN,
+                "powerlines" INTEGER,
+                "breaker_size" INTEGER,
+                "smart_onzen" INTEGER,
+                "fogger" BOOLEAN,
+                "sds" BOOLEAN,
+                "yess" BOOLEAN,
+
+                FOREIGN KEY ("process_run_id")
+                    REFERENCES "process_run" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+
+                FOREIGN KEY ("connection_session_id")
+                    REFERENCES "connection_session" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+            )
+        "#;
+        let sql_create_table_message_error = r#"
+            CREATE TABLE "message_error" (
+                "id" INTEGER PRIMARY KEY,
+                "created_at" DATETIME,
+                "process_run_id" INTEGER,
+                "connection_session_id" INTEGER,
+                "message_received_at" DATETIME,
+
+                "no_flow" BOOLEAN,
+                "flow_switch" BOOLEAN,
+                "heater_over_temperature" BOOLEAN,
+                "spa_over_temperature" BOOLEAN,
+                "spa_temperature_probe" BOOLEAN,
+                "spa_high_limit" BOOLEAN,
+                "eeprom" BOOLEAN,
+                "freeze_protect" BOOLEAN,
+                "ph_high" BOOLEAN,
+                "heater_probe_disconnected" BOOLEAN,
+
+                FOREIGN KEY ("process_run_id")
+                    REFERENCES "process_run" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+
+                FOREIGN KEY ("connection_session_id")
+                    REFERENCES "connection_session" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+            )
+        "#;
+        let sql_create_table_message_filter = r#"
+            CREATE TABLE "message_filter" (
+                "id" INTEGER PRIMARY KEY,
+                "created_at" DATETIME,
+                "process_run_id" INTEGER,
+                "connection_session_id" INTEGER,
+                "message_received_at" DATETIME,
+
+                "serial_nums" TEXT,
+                "filter_state" INTEGER,
+                "install_dates" TEXT,
+
+                FOREIGN KEY ("process_run_id")
+                    REFERENCES "process_run" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+
+                FOREIGN KEY ("connection_session_id")
+                    REFERENCES "connection_session" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+            )
+        "#;
+        let sql_create_table_message_information = r#"
+            CREATE TABLE "message_information" (
+                "id" INTEGER PRIMARY KEY,
+                "created_at" DATETIME,
+                "process_run_id" INTEGER,
+                "connection_session_id" INTEGER,
+                "message_received_at" DATETIME,
+
+                "pack_serial_number" TEXT,
+                "pack_firmware_version" TEXT,
+                "pack_hardware_version" TEXT,
+                "pack_product_id" TEXT,
+                "pack_board_id" TEXT,
+                "topside_product_id" TEXT,
+                "topside_software_version" TEXT,
+                "guid" TEXT,
+                "spa_type" INTEGER,
+                "website_registration" BOOLEAN,
+                "website_registration_confirm" BOOLEAN,
+                "mac_address" BLOB,
+                "firmware_version" INTEGER,
+                "product_code" INTEGER,
+                "var_software_version" TEXT,
+                "spaboy_firmware_version" TEXT,
+                "spaboy_hardware_version" TEXT,
+                "spaboy_product_id" TEXT,
+                "spaboy_serial_number" TEXT,
+                "rfid_firmware_version" TEXT,
+                "rfid_hardware_version" TEXT,
+                "rfid_product_id" TEXT,
+                "rfid_serial_number" TEXT,
+
+                FOREIGN KEY ("process_run_id")
+                    REFERENCES "process_run" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+
+                FOREIGN KEY ("connection_session_id")
+                    REFERENCES "connection_session" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+            )
+        "#;
+        let sql_create_table_message_live = r#"
+            CREATE TABLE "message_live" (
+                "id" INTEGER PRIMARY KEY,
+                "created_at" DATETIME,
+                "process_run_id" INTEGER,
+                "connection_session_id" INTEGER,
+                "message_received_at" DATETIME,
+
+                "temperature_fahrenheit" INTEGER,
+                "temperature_setpoint_fahrenheit" INTEGER,
+                "pump_1" INTEGER,
+                "pump_2" INTEGER,
+                "pump_3" INTEGER,
+                "pump_4" INTEGER,
+                "pump_5" INTEGER,
+                "blower_1" INTEGER,
+                "blower_2" INTEGER,
+                "lights" BOOLEAN,
+                "stereo" BOOLEAN,
+                "heater_1" INTEGER,
+                "heater_2" INTEGER,
+                "filter" INTEGER,
+                "onzen" BOOLEAN,
+                "ozone" INTEGER,
+                "exhaust_fan" BOOLEAN,
+                "sauna" INTEGER,
+                "heater_adc" INTEGER,
+                "sauna_time_remaining" INTEGER,
+                "economy" BOOLEAN,
+                "current_adc" INTEGER,
+                "all_on" BOOLEAN,
+                "fogger" BOOLEAN,
+                "error" INTEGER,
+                "alarm" INTEGER,
+                "status" INTEGER,
+                "ph" INTEGER,
+                "orp" INTEGER,
+                "sds" BOOLEAN,
+                "yess" BOOLEAN,
+
+                FOREIGN KEY ("process_run_id")
+                    REFERENCES "process_run" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+
+                FOREIGN KEY ("connection_session_id")
+                    REFERENCES "connection_session" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+            )
+        "#;
+        let sql_create_table_message_onzen_live = r#"
+            CREATE TABLE "message_onzen_live" (
+                "id" INTEGER PRIMARY KEY,
+                "created_at" DATETIME,
+                "process_run_id" INTEGER,
+                "connection_session_id" INTEGER,
+                "message_received_at" DATETIME,
+
+                "guid" TEXT,
+                "orp" INTEGER,
+                "ph_100" INTEGER,
+                "current" INTEGER,
+                "voltage" INTEGER,
+                "current_setpoint" INTEGER,
+                "voltage_setpoint" INTEGER,
+                "pump1" BOOLEAN,
+                "pump2" BOOLEAN,
+                "orp_state_machine" INTEGER,
+                "electrode_state_machine" INTEGER,
+                "electrode_id" INTEGER,
+                "electrode_polarity" INTEGER,
+                "electrode_1_resistance_1" INTEGER,
+                "electrode_1_resistance_2" INTEGER,
+                "electrode_2_resistance_1" INTEGER,
+                "electrode_2_resistance_2" INTEGER,
+                "command_mode" BOOLEAN,
+                "electrode_mah" INTEGER,
+                "ph_color" INTEGER,
+                "orp_color" INTEGER,
+                "electrode_wear" INTEGER,
+
+                FOREIGN KEY ("process_run_id")
+                    REFERENCES "process_run" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+
+                FOREIGN KEY ("connection_session_id")
+                    REFERENCES "connection_session" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+            )
+        "#;
+        let sql_create_table_message_onzen_settings = r#"
+            CREATE TABLE "message_onzen_settings" (
+                "id" INTEGER PRIMARY KEY,
+                "created_at" DATETIME,
+                "process_run_id" INTEGER,
+                "connection_session_id" INTEGER,
+                "message_received_at" DATETIME,
+
+                "guid" TEXT,
+                "over_voltage" INTEGER,
+                "under_voltage" INTEGER,
+                "over_current" INTEGER,
+                "under_current" INTEGER,
+                "orp_high" INTEGER,
+                "orp_low" INTEGER,
+                "ph_high" INTEGER,
+                "ph_low" INTEGER,
+                "pwm_pump1_time_on" INTEGER,
+                "pwm_pump1_time_off" INTEGER,
+                "sampling_interval" INTEGER,
+                "sampling_duration" INTEGER,
+                "pwm_pump2_time_on" INTEGER,
+                "pwm_pump2_time_off" INTEGER,
+                "sb_low_cl" INTEGER,
+                "sb_caution_low_cl" INTEGER,
+                "sb_caution_high_cl" INTEGER,
+                "sb_high_cl" INTEGER,
+                "sb_low_ph" INTEGER,
+                "sb_caution_low_ph" INTEGER,
+                "sb_caution_high_ph" INTEGER,
+                "sb_high_ph" INTEGER,
+
+                FOREIGN KEY ("process_run_id")
+                    REFERENCES "process_run" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+
+                FOREIGN KEY ("connection_session_id")
+                    REFERENCES "connection_session" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+            )
+        "#;
+        let sql_create_table_message_peak = r#"
+            CREATE TABLE "message_peak" (
+                "id" INTEGER PRIMARY KEY,
+                "created_at" DATETIME,
+                "process_run_id" INTEGER,
+                "connection_session_id" INTEGER,
+                "message_received_at" DATETIME,
+
+                "peaknum" INTEGER,
+                "peakstart1" INTEGER,
+                "peakend1" INTEGER,
+                "peakstart2" INTEGER,
+                "peakend2" INTEGER,
+                "midpeaknum" INTEGER,
+                "midpeakstart1" INTEGER,
+                "midpeakend1" INTEGER,
+                "midpeakstart2" INTEGER,
+                "midpeakend2" INTEGER,
+                "offpeakstart" INTEGER,
+                "offpeakend" INTEGER,
+                "offset" INTEGER,
+                "peakheater" BOOLEAN,
+                "peakfilter" BOOLEAN,
+                "peakozone" BOOLEAN,
+                "midpeakheater" BOOLEAN,
+                "midpeakfilter" BOOLEAN,
+                "midpeakozone" BOOLEAN,
+                "sat" BOOLEAN,
+                "sun" BOOLEAN,
+                "mon" BOOLEAN,
+                "tue" BOOLEAN,
+                "wed" BOOLEAN,
+                "thu" BOOLEAN,
+                "fri" BOOLEAN,
+
+                FOREIGN KEY ("process_run_id")
+                    REFERENCES "process_run" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+
+                FOREIGN KEY ("connection_session_id")
+                    REFERENCES "connection_session" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+            )
+        "#;
+        let sql_create_table_message_peripheral = r#"
+            CREATE TABLE "message_peripheral" (
+                "id" INTEGER PRIMARY KEY,
+                "created_at" DATETIME,
+                "process_run_id" INTEGER,
+                "connection_session_id" INTEGER,
+                "message_received_at" DATETIME,
+
+                "guid" TEXT,
+                "hardware_version" INTEGER,
+                "firmware_version" INTEGER,
+                "product_code" INTEGER,
+                "connected" BOOLEAN,
+
+                FOREIGN KEY ("process_run_id")
+                    REFERENCES "process_run" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+
+                FOREIGN KEY ("connection_session_id")
+                    REFERENCES "connection_session" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+            )
+        "#;
+        let sql_create_table_message_settings = r#"
+            CREATE TABLE "message_settings" (
+                "id" INTEGER PRIMARY KEY,
+                "created_at" DATETIME,
+                "process_run_id" INTEGER,
+                "connection_session_id" INTEGER,
+                "message_received_at" DATETIME,
+
+                "max_filtration_frequency" INTEGER,
+                "min_filtration_frequency" INTEGER,
+                "filtration_frequency" INTEGER,
+                "max_filtration_duration" INTEGER,
+                "min_filtration_duration" INTEGER,
+                "filtration_duration" INTEGER,
+                "max_onzen_hours" INTEGER,
+                "min_onzen_hours" INTEGER,
+                "onzen_hours" INTEGER,
+                "max_onzen_cycles" INTEGER,
+                "min_onzen_cycles" INTEGER,
+                "onzen_cycles" INTEGER,
+                "max_ozone_hours" INTEGER,
+                "min_ozone_hours" INTEGER,
+                "ozone_hours" INTEGER,
+                "max_ozone_cycles" INTEGER,
+                "min_ozone_cycles" INTEGER,
+                "ozone_cycles" INTEGER,
+                "filter_suspension" BOOLEAN,
+                "flash_lights_on_error" BOOLEAN,
+                "temperature_offset" INTEGER,
+                "sauna_duration" INTEGER,
+                "min_temperature" INTEGER,
+                "max_temperature" INTEGER,
+                "filtration_offset" INTEGER,
+                "spaboy_hours" INTEGER,
+
+                FOREIGN KEY ("process_run_id")
+                    REFERENCES "process_run" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+
+                FOREIGN KEY ("connection_session_id")
+                    REFERENCES "connection_session" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+            )
+        "#;
+        let sql_create_table_command_request = r#"
+            CREATE TABLE "command_request" (
+                "id" INTEGER PRIMARY KEY,
+                "created_at" DATETIME,
+                "process_run_id" INTEGER,
+                "connection_session_id" INTEGER,
+                "command_sent_at" DATETIME,
+
+                "name" TEXT,
+                "value" TEXT,
+
+                FOREIGN KEY ("process_run_id")
+                    REFERENCES "process_run" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+
+                FOREIGN KEY ("connection_session_id")
+                    REFERENCES "connection_session" ("id")
+                    ON DELETE CASCADE
+                    ON UPDATE CASCADE
+            )
+        "#;
+
+        self.conn.execute(sql_create_table_process_run, [])?;
+        self.conn.execute(sql_create_table_connection_session, [])?;
+        self.conn.execute(sql_create_table_message_clock, [])?;
+        self.conn.execute(sql_create_table_message_configuration, [])?;
+        self.conn.execute(sql_create_table_message_error, [])?;
+        self.conn.execute(sql_create_table_message_filter, [])?;
+        self.conn.execute(sql_create_table_message_information, [])?;
+        self.conn.execute(sql_create_table_message_live, [])?;
+        self.conn.execute(sql_create_table_message_onzen_live, [])?;
+        self.conn.execute(sql_create_table_message_onzen_settings, [])?;
+        self.conn.execute(sql_create_table_message_peak, [])?;
+        self.conn.execute(sql_create_table_message_peripheral, [])?;
+        self.conn.execute(sql_create_table_message_settings, [])?;
+        self.conn.execute(sql_create_table_command_request, [])?;
+
+        Ok(())
+    }
+
+    fn create_process_run(&mut self) -> Result<(), rusqlite::Error> {
+        let sql_insert = r#"
+            INSERT INTO process_run (created_at)
+            VALUES (datetime('now'))
+        "#;
+        self.conn.execute(sql_insert, [])?;
+        let process_run_id = self.conn.last_insert_rowid();
+        self.process_run_id = Some(process_run_id);
+        Ok(())
+    }
+
+    pub fn create_connection_session(&mut self, host: &str) -> Result<(), rusqlite::Error> {
+        let sql_insert = r#"
+            INSERT INTO connection_session (created_at, process_run_id, host)
+            VALUES (datetime('now'), ?1, ?2)
+        "#;
+        let process_run_id = self.process_run_id.ok_or(rusqlite::Error::InvalidQuery)?;
+        self.conn.execute(sql_insert, params![process_run_id, host])?;
+        let connection_session_id = self.conn.last_insert_rowid();
+        self.connection_session_id = Some(connection_session_id);
+        Ok(())
+    }
+
+    fn current_run_and_session_ids(&self) -> Result<(i64, i64), rusqlite::Error> {
+        let process_run_id = self.process_run_id.ok_or(rusqlite::Error::InvalidQuery)?;
+        let connection_session_id = self.connection_session_id.ok_or(rusqlite::Error::InvalidQuery)?;
+        Ok((process_run_id, connection_session_id))
+    }
+
+    pub fn insert_message_clock(&self, _message: &proto::Clock::Clock) -> Result<(), rusqlite::Error> {
+        let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
+
+        self.conn.execute(
+            r#"
+                INSERT INTO message_clock (
+                    "created_at",
+                    "process_run_id",
+                    "connection_session_id",
+                    "message_received_at",
+                    "year",
+                    "month",
+                    "day",
+                    "hour",
+                    "minute",
+                    "second"
+                )
+                VALUES (
+                    datetime('now'), ?1, ?2, datetime('now'),
+                    NULL, NULL, NULL, NULL, NULL, NULL
+                )
+            "#,
+            params![process_run_id, connection_session_id],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn insert_message_configuration(&self, _message: &proto::Configuration::Configuration) -> Result<(), rusqlite::Error> {
+        let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
+
+        self.conn.execute(
+            r#"
+                INSERT INTO message_configuration (
+                    "created_at",
+                    "process_run_id",
+                    "connection_session_id",
+                    "message_received_at",
+                    "pump1",
+                    "pump2",
+                    "pump3",
+                    "pump4",
+                    "pump5",
+                    "blower1",
+                    "blower2",
+                    "lights",
+                    "stereo",
+                    "heater1",
+                    "heater2",
+                    "filter",
+                    "onzen",
+                    "ozone_peak_1",
+                    "ozone_peak_2",
+                    "exhaust_fan",
+                    "powerlines",
+                    "breaker_size",
+                    "smart_onzen",
+                    "fogger",
+                    "sds",
+                    "yess"
+                )
+                VALUES (
+                    datetime('now'), ?1, ?2, datetime('now'),
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL
+                )
+            "#,
+            params![process_run_id, connection_session_id],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn insert_message_error(&self, _message: &proto::Error::Error) -> Result<(), rusqlite::Error> {
+        let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
+
+        self.conn.execute(
+            r#"
+                INSERT INTO message_error (
+                    "created_at",
+                    "process_run_id",
+                    "connection_session_id",
+                    "message_received_at",
+                    "no_flow",
+                    "flow_switch",
+                    "heater_over_temperature",
+                    "spa_over_temperature",
+                    "spa_temperature_probe",
+                    "spa_high_limit",
+                    "eeprom",
+                    "freeze_protect",
+                    "ph_high",
+                    "heater_probe_disconnected"
+                )
+                VALUES (
+                    datetime('now'), ?1, ?2, datetime('now'),
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+                )
+            "#,
+            params![process_run_id, connection_session_id],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn insert_message_filter(&self, _message: &proto::Filter::Filter) -> Result<(), rusqlite::Error> {
+        let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
+
+        self.conn.execute(
+            r#"
+                INSERT INTO message_filter (
+                    "created_at",
+                    "process_run_id",
+                    "connection_session_id",
+                    "message_received_at",
+                    "serial_nums",
+                    "filter_state",
+                    "install_dates"
+                )
+                VALUES (
+                    datetime('now'), ?1, ?2, datetime('now'),
+                    NULL, NULL, NULL
+                )
+            "#,
+            params![process_run_id, connection_session_id],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn insert_message_information(&self, _message: &proto::Information::Information) -> Result<(), rusqlite::Error> {
+        let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
+
+        self.conn.execute(
+            r#"
+                INSERT INTO message_information (
+                    "created_at",
+                    "process_run_id",
+                    "connection_session_id",
+                    "message_received_at",
+                    "pack_serial_number",
+                    "pack_firmware_version",
+                    "pack_hardware_version",
+                    "pack_product_id",
+                    "pack_board_id",
+                    "topside_product_id",
+                    "topside_software_version",
+                    "guid",
+                    "spa_type",
+                    "website_registration",
+                    "website_registration_confirm",
+                    "mac_address",
+                    "firmware_version",
+                    "product_code",
+                    "var_software_version",
+                    "spaboy_firmware_version",
+                    "spaboy_hardware_version",
+                    "spaboy_product_id",
+                    "spaboy_serial_number",
+                    "rfid_firmware_version",
+                    "rfid_hardware_version",
+                    "rfid_product_id",
+                    "rfid_serial_number"
+                )
+                VALUES (
+                    datetime('now'), ?1, ?2, datetime('now'),
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL
+                )
+            "#,
+            params![process_run_id, connection_session_id],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn insert_message_live(&self, message: &proto::Live::Live) -> Result<(), rusqlite::Error> {
+        let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
+
+        self.conn.execute(
+            r#"
+                INSERT INTO message_live (
+                    "created_at",
+                    "process_run_id",
+                    "connection_session_id",
+                    "message_received_at",
+
+                    "temperature_fahrenheit",
+                    "temperature_setpoint_fahrenheit",
+                    "pump_1",
+                    "pump_2",
+                    "pump_3",
+                    "pump_4",
+                    "pump_5",
+                    "blower_1",
+                    "blower_2",
+                    "lights",
+                    "stereo",
+                    "heater_1",
+                    "heater_2",
+                    "filter",
+                    "onzen",
+                    "ozone",
+                    "exhaust_fan",
+                    "sauna",
+                    "heater_adc",
+                    "sauna_time_remaining",
+                    "economy",
+                    "current_adc",
+                    "all_on",
+                    "fogger",
+                    "error",
+                    "alarm",
+                    "status",
+                    "ph",
+                    "orp",
+                    "sds",
+                    "yess"
+                )
+                VALUES
+                (
+                    ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
+                    ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20,
+                    ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30,
+                    ?31, ?32, ?33, ?34, ?35
+                )
+            "#,
+            params![
+                "datetime('now')",
+                process_run_id,
+                connection_session_id,
+                "datetime('now')",
+                message.temperature_fahrenheit(),
+                message.temperature_setpoint_fahrenheit(),
+                message.pump_1().value(),
+                message.pump_2().value(),
+                message.pump_3().value(),
+                message.pump_4().value(),
+                message.pump_5().value(),
+                message.blower_1().value(),
+                message.blower_2().value(),
+                message.lights(),
+                message.stereo(),
+                message.heater_1().value(),
+                message.heater_2().value(),
+                message.filter().value(),
+                message.onzen(),
+                message.ozone().value(),
+                message.exhaust_fan(),
+                message.sauna().value(),
+                message.heater_adc(),
+                message.sauna_time_remaining(),
+                message.economy(),
+                message.current_adc(),
+                message.all_on(),
+                message.fogger(),
+                message.error(),
+                message.alarm(),
+                message.status(),
+                message.ph(),
+                message.orp(),
+                message.sds(),
+                message.yess()
+            ]
+        )?;
+
+        Ok(())
+    }
+
+    pub fn insert_message_onzen_live(&self, _message: &proto::OnzenLive::OnzenLive) -> Result<(), rusqlite::Error> {
+        let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
+
+        self.conn.execute(
+            r#"
+                INSERT INTO message_onzen_live (
+                    "created_at",
+                    "process_run_id",
+                    "connection_session_id",
+                    "message_received_at",
+                    "guid",
+                    "orp",
+                    "ph_100",
+                    "current",
+                    "voltage",
+                    "current_setpoint",
+                    "voltage_setpoint",
+                    "pump1",
+                    "pump2",
+                    "orp_state_machine",
+                    "electrode_state_machine",
+                    "electrode_id",
+                    "electrode_polarity",
+                    "electrode_1_resistance_1",
+                    "electrode_1_resistance_2",
+                    "electrode_2_resistance_1",
+                    "electrode_2_resistance_2",
+                    "command_mode",
+                    "electrode_mah",
+                    "ph_color",
+                    "orp_color",
+                    "electrode_wear"
+                )
+                VALUES (
+                    datetime('now'), ?1, ?2, datetime('now'),
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, NULL
+                )
+            "#,
+            params![process_run_id, connection_session_id],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn insert_message_onzen_settings(&self, _message: &proto::OnzenSettings::OnzenSettings) -> Result<(), rusqlite::Error> {
+        let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
+
+        self.conn.execute(
+            r#"
+                INSERT INTO message_onzen_settings (
+                    "created_at",
+                    "process_run_id",
+                    "connection_session_id",
+                    "message_received_at",
+                    "guid",
+                    "over_voltage",
+                    "under_voltage",
+                    "over_current",
+                    "under_current",
+                    "orp_high",
+                    "orp_low",
+                    "ph_high",
+                    "ph_low",
+                    "pwm_pump1_time_on",
+                    "pwm_pump1_time_off",
+                    "sampling_interval",
+                    "sampling_duration",
+                    "pwm_pump2_time_on",
+                    "pwm_pump2_time_off",
+                    "sb_low_cl",
+                    "sb_caution_low_cl",
+                    "sb_caution_high_cl",
+                    "sb_high_cl",
+                    "sb_low_ph",
+                    "sb_caution_low_ph",
+                    "sb_caution_high_ph",
+                    "sb_high_ph"
+                )
+                VALUES (
+                    datetime('now'), ?1, ?2, datetime('now'),
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL
+                )
+            "#,
+            params![process_run_id, connection_session_id],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn insert_message_peak(&self, _message: &proto::Peak::Peak) -> Result<(), rusqlite::Error> {
+        let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
+
+        self.conn.execute(
+            r#"
+                INSERT INTO message_peak (
+                    "created_at",
+                    "process_run_id",
+                    "connection_session_id",
+                    "message_received_at",
+                    "peaknum",
+                    "peakstart1",
+                    "peakend1",
+                    "peakstart2",
+                    "peakend2",
+                    "midpeaknum",
+                    "midpeakstart1",
+                    "midpeakend1",
+                    "midpeakstart2",
+                    "midpeakend2",
+                    "offpeakstart",
+                    "offpeakend",
+                    "offset",
+                    "peakheater",
+                    "peakfilter",
+                    "peakozone",
+                    "midpeakheater",
+                    "midpeakfilter",
+                    "midpeakozone",
+                    "sat",
+                    "sun",
+                    "mon",
+                    "tue",
+                    "wed",
+                    "thu",
+                    "fri"
+                )
+                VALUES (
+                    datetime('now'), ?1, ?2, datetime('now'),
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL
+                )
+            "#,
+            params![process_run_id, connection_session_id],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn insert_message_peripheral(&self, _message: &proto::Peripheral::Peripheral) -> Result<(), rusqlite::Error> {
+        let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
+
+        self.conn.execute(
+            r#"
+                INSERT INTO message_peripheral (
+                    "created_at",
+                    "process_run_id",
+                    "connection_session_id",
+                    "message_received_at",
+                    "guid",
+                    "hardware_version",
+                    "firmware_version",
+                    "product_code",
+                    "connected"
+                )
+                VALUES (
+                    datetime('now'), ?1, ?2, datetime('now'),
+                    NULL, NULL, NULL, NULL, NULL
+                )
+            "#,
+            params![process_run_id, connection_session_id],
+        )?;
+
+        Ok(())
+    }
+
+    pub fn insert_message_settings(&self, _message: &proto::Settings::Settings) -> Result<(), rusqlite::Error> {
+        let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
+
+        self.conn.execute(
+            r#"
+                INSERT INTO message_settings (
+                    "created_at",
+                    "process_run_id",
+                    "connection_session_id",
+                    "message_received_at",
+                    "max_filtration_frequency",
+                    "min_filtration_frequency",
+                    "filtration_frequency",
+                    "max_filtration_duration",
+                    "min_filtration_duration",
+                    "filtration_duration",
+                    "max_onzen_hours",
+                    "min_onzen_hours",
+                    "onzen_hours",
+                    "max_onzen_cycles",
+                    "min_onzen_cycles",
+                    "onzen_cycles",
+                    "max_ozone_hours",
+                    "min_ozone_hours",
+                    "ozone_hours",
+                    "max_ozone_cycles",
+                    "min_ozone_cycles",
+                    "ozone_cycles",
+                    "filter_suspension",
+                    "flash_lights_on_error",
+                    "temperature_offset",
+                    "sauna_duration",
+                    "min_temperature",
+                    "max_temperature",
+                    "filtration_offset",
+                    "spaboy_hours"
+                )
+                VALUES (
+                    datetime('now'), ?1, ?2, datetime('now'),
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+                    NULL, NULL
+                )
+            "#,
+            params![process_run_id, connection_session_id],
+        )?;
+
+        Ok(())
+    }
+}
