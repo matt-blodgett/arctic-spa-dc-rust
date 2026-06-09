@@ -66,6 +66,9 @@ pub fn init_logging(log_level: LogLevel) -> () {
     env_logger::Builder::new()
         .format(|buf, record| {
             // https://docs.rs/log/0.4.29/log/struct.Record.html
+            // println!("{:?}", record);
+            // println!("{:?}", record.metadata());
+            // println!("{:?}", buf);
 
             // writeln!(
             //     buf,
@@ -89,13 +92,22 @@ pub fn init_logging(log_level: LogLevel) -> () {
                 level += " ";
             }
 
+            // writeln!(
+            //     buf,
+            //     "[{} | {} | {}:{}] {}",
+            //     buf.timestamp(),
+            //     level,
+            //     record.file().unwrap_or(""),
+            //     record.line().unwrap_or(0),
+            //     record.args()
+            // )
+
             writeln!(
                 buf,
-                "[{} | {} | {}:{}] {}",
+                "[{} | {} | {:}] {}",
                 buf.timestamp(),
                 level,
-                record.file().unwrap_or(""),
-                record.line().unwrap_or(0),
+                record.module_path().unwrap_or(""),
                 record.args()
             )
         })

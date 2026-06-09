@@ -17,7 +17,7 @@ const HEADER_PREAMBLE: [u8; 4] = [171, 173, 29, 58];
 const HEADER_MAGIC: i32 = -1414718150;
 
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum MessageType {
     Live = 0,
     Command = 1,
@@ -452,8 +452,9 @@ impl NetworkClient {
             let msg = match ProtoMessage::try_from(packet) {
                 Ok(m) => m,
                 Err(e) => {
-                    // if packet.message_type_value != MessageType::Heartbeat as u16 {
-                    log::error!("error parsing message: {}", e);
+                    if packet.message_type_value != MessageType::Heartbeat as u16 {
+                        log::warn!("error parsing message: {}", e);
+                    }
                     continue;
                 }
             };
@@ -482,6 +483,7 @@ impl NetworkClient {
                     log::trace!("parsed {} / {} bytes", parsed_byte_count, total_bytes_read);
                 },
                 Err(e) => {
+                    log::error!("error parsing packet: {}", e);
                     return Err(e);
                 }
             }

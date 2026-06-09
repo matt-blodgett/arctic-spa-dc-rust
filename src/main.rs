@@ -255,6 +255,11 @@ fn main () {
             if ip_address.is_empty() {
                 fatal_error_and_exit("no ip address specified; aborting");
             }
+            if testing_mode {
+                 commands::poll::test();
+                 return;
+            }
+
             // if testing_mode {
             //     commands::poll::db_populate_mock_data(&ip_address);
             //     return;

@@ -7,16 +7,96 @@ use std::time::SystemTime;
 
 use std::{thread, time::Duration};
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use std::collections::HashMap;
 
 
 use protobuf::Enum;
 
+use crate::commands::poll;
 use crate::proto;
 use crate::core::db;
 use crate::core::net::{MessageType, ProtoMessage, NetworkClient};
 
 
 const MAX_POLLING_DURATION_MS: u128 = 30 * 1000;
+
+
+
+#[derive(Debug)]
+struct PollInterval {
+    refresh_interval_ms: u64,
+    last_refresh_time: SystemTime,
+}
+
+
+type MessageIntervals = HashMap<MessageType, PollInterval>;
+
+#[derive(Debug)]
+struct PollConfig {
+    ip_address: String,
+    message_intervals: MessageIntervals,
+}
+
+
+pub fn test() {
+
+    let poll_config = PollConfig {
+        ip_address: "".to_string(),
+        message_intervals: MessageIntervals::from([
+            (MessageType::Clock, PollInterval {
+                refresh_interval_ms: 5_000,
+                last_refresh_time: SystemTime::now()
+            }),
+            (MessageType::Configuration, PollInterval {
+                refresh_interval_ms: 10_000,
+                last_refresh_time: SystemTime::now()
+            }),
+            (MessageType::Error, PollInterval {
+                refresh_interval_ms: 15_000,
+                last_refresh_time: SystemTime::now()
+            }),
+            (MessageType::Filter, PollInterval {
+                refresh_interval_ms: 20_000,
+                last_refresh_time: SystemTime::now()
+            }),
+            (MessageType::Information, PollInterval {
+                refresh_interval_ms: 25_000,
+                last_refresh_time: SystemTime::now()
+            }),
+            (MessageType::Live, PollInterval {
+                refresh_interval_ms: 30_000,
+                last_refresh_time: SystemTime::now()
+            }),
+            (MessageType::OnzenLive, PollInterval {
+                refresh_interval_ms: 35_000,
+                last_refresh_time: SystemTime::now()
+            }),
+            (MessageType::OnzenSettings, PollInterval {
+                refresh_interval_ms: 40_000,
+                last_refresh_time: SystemTime::now()
+            }),
+            (MessageType::Peak, PollInterval {
+                refresh_interval_ms: 45_000,
+                last_refresh_time: SystemTime::now()
+            }),
+            (MessageType::Peripheral, PollInterval {
+                refresh_interval_ms: 50_000,
+                last_refresh_time: SystemTime::now()
+            }),
+            (MessageType::Router, PollInterval {
+                refresh_interval_ms: 55_000,
+                last_refresh_time: SystemTime::now()
+            }),
+            (MessageType::Settings, PollInterval {
+                refresh_interval_ms: 60_000,
+                last_refresh_time: SystemTime::now()
+            }),
+        ]),
+    };
+    println!("poll_config: {:#?}", poll_config);
+
+    println!("test {:?}", poll_config.message_intervals[&MessageType::Live]);
+}
 
 
 pub fn poll_device(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -38,12 +118,12 @@ pub fn poll_device(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
     let mut network_client = NetworkClient::connect_to(ip_address)?;
 
     log::debug!("initializing database");
-    let mut db_client = db::DatabaseClient::open(None)?;
+    let mut db_client = db::DatabaseClient::open(None, false)?;
     db_client.create_connection_session(ip_address)?;
 
     let start_time = SystemTime::now();
 
-    log::debug!("requesting initial data sync");
+    log::debug!("requesting messages for initial data sync");
     network_client.request_message(MessageType::Clock)?;
     thread::sleep(Duration::from_millis(500));
     network_client.request_message(MessageType::Configuration)?;
@@ -75,9 +155,16 @@ pub fn poll_device(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     while running.load(Ordering::SeqCst) {
 
+        let mut message_count = 0;
+
+        log::debug!("polling messages...");
         match network_client.read_messages() {
             Ok(messages) => {
-                log::debug!("received {} messages", messages.len());
+                message_count = messages.len();
+
+                if message_count > 0 {
+                    log::debug!("received {} messages", message_count);
+                }
                 for message in messages {
                     log::debug!("received message {:?} at {:?}", message.message_type(), message.received_at());
                     if let Err(e) = db_client.insert_message(&message) {
@@ -92,11 +179,13 @@ pub fn poll_device(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
             }
         }
 
-        log::debug!("sleeping for 1000ms...");
-        thread::sleep(Duration::from_millis(1_000));
+        if message_count == 0 {
+            log::trace!("no messages received, sleeping for 1000ms...");
+            thread::sleep(Duration::from_millis(1_000));
+        }
 
         if start_time.elapsed()?.as_millis() > MAX_POLLING_DURATION_MS {
-            log::debug!("reached max polling duration of {} milliseconds, exiting polling loop", MAX_POLLING_DURATION_MS);
+            log::info!("reached max polling duration of {} milliseconds, exiting polling loop", MAX_POLLING_DURATION_MS);
             break;
         }
     }

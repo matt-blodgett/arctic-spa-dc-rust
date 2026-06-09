@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-#[allow(unused_imports)]
+#![allow(unused_imports)]
 
 
 use std::fs;
@@ -87,7 +87,7 @@ impl AppConfigManager {
         log::debug!("loading config from custom location {:#?}", config_path.display());
         let config_content = fs::read_to_string(&config_path)?;
         let data: AppConfig = serde_json::from_str(&config_content).unwrap();
-        log::info!("config loaded sucessfully from {:#?}", config_path.display());
+        log::info!("config loaded successfully from {:#?}", config_path.display());
         Ok(Self {
             data,
             path: config_path.to_path_buf(),
@@ -104,7 +104,7 @@ impl AppConfigManager {
     pub fn get_value(&self, key: &str) -> Result<Value, serde_json::Error> {
         let app_config_json = serde_json::to_value(&self.data)?;
         let value = serde_json::to_value(app_config_json[key].clone())?;
-        log::trace!("config get_value: {:?}={:?}", key, value);
+        log::trace!("get_value: {:?}={:?}", key, value);
         Ok(value)
     }
 
@@ -120,7 +120,7 @@ impl AppConfigManager {
         self.data = serde_json::from_value(app_config_json)?;
         self.save()?;
 
-        log::trace!("config set_value: {:?}={:?}", key, value);
+        log::trace!("set_value: {:?}={:?}", key, value);
 
         Ok(())
     }
