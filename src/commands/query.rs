@@ -3,8 +3,10 @@
 
 use std::io::Error;
 use std::path::Path;
+use std::time::SystemTime;
 
 use clap::ValueEnum;
+use chrono::{DateTime, Utc};
 
 use crate::proto;
 use crate::core::net::{MessageType, ProtoMessage, NetworkClient};
@@ -66,29 +68,31 @@ pub fn get_message(ip_address: &str, message_type: MessageType) -> Result<ProtoM
 }
 
 
-pub fn display_message(message_type: MessageType, message: ProtoMessage, output_path: Option<&Path>) -> () {
+pub fn display_message(message_type: &MessageType, message: &ProtoMessage, output_path: Option<&Path>) -> () {
     log::info!("outputting message data");
 
     let output_string = match message {
-        ProtoMessage::Live(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        ProtoMessage::Command(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        ProtoMessage::Settings(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        ProtoMessage::Configuration(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        ProtoMessage::Peak(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        ProtoMessage::Clock(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        ProtoMessage::Information(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        ProtoMessage::Error(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        ProtoMessage::Router(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        ProtoMessage::Filter(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        ProtoMessage::Peripheral(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        ProtoMessage::OnzenLive(msg) => protobuf::text_format::print_to_string_pretty(&msg),
-        ProtoMessage::OnzenSettings(msg) => protobuf::text_format::print_to_string_pretty(&msg),
+        ProtoMessage::Live { message, .. } => protobuf::text_format::print_to_string_pretty(message),
+        ProtoMessage::Command { message, .. } => protobuf::text_format::print_to_string_pretty(message),
+        ProtoMessage::Settings { message, .. } => protobuf::text_format::print_to_string_pretty(message),
+        ProtoMessage::Configuration { message, .. } => protobuf::text_format::print_to_string_pretty(message),
+        ProtoMessage::Peak { message, .. } => protobuf::text_format::print_to_string_pretty(message),
+        ProtoMessage::Clock { message, .. } => protobuf::text_format::print_to_string_pretty(message),
+        ProtoMessage::Information { message, .. } => protobuf::text_format::print_to_string_pretty(message),
+        ProtoMessage::Error { message, .. } => protobuf::text_format::print_to_string_pretty(message),
+        ProtoMessage::Router { message, .. } => protobuf::text_format::print_to_string_pretty(message),
+        ProtoMessage::Filter { message, .. } => protobuf::text_format::print_to_string_pretty(message),
+        ProtoMessage::Peripheral { message, .. } => protobuf::text_format::print_to_string_pretty(message),
+        ProtoMessage::OnzenLive { message, .. } => protobuf::text_format::print_to_string_pretty(message),
+        ProtoMessage::OnzenSettings { message, .. } => protobuf::text_format::print_to_string_pretty(message),
     };
+
+    let received_at = message.received_at_formatted(None);
 
     match output_path {
         Some(path) => {
             log::info!("writing message data to file: {:?}", path);
-            match std::fs::write(path, &output_string) {
+            match std::fs::write(path, output_string) {
                 Ok(_) => log::info!("successfully wrote message data to {:?}", path),
                 Err(e) => {
                     log::error!("failed to write message data to file: {:?}", e);
@@ -98,7 +102,7 @@ pub fn display_message(message_type: MessageType, message: ProtoMessage, output_
             }
         }
         None => {
-            println!("message data for \"{:#?}\"", message_type);
+            println!("message data for \"{:#?}\" - received at {:?}", message_type, received_at);
             for line in output_string.split('\n') {
                 if !line.is_empty() {
                     println!("{}", line);
@@ -145,8 +149,11 @@ pub fn test_display_message(message_type: MessageType, output_path: Option<&Path
     msg.set_sds(false);
     msg.set_yess(false);
 
-    let msg_wrapped = ProtoMessage::Live(msg);
+    let msg_wrapped = ProtoMessage::Live {
+        message: msg,
+        received_at: SystemTime::now(),
+    };
 
-    display_message(MessageType::Live, msg_wrapped, output_path.as_deref());
+    display_message(&MessageType::Live, &msg_wrapped, output_path.as_deref());
     return;
 }

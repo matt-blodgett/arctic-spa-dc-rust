@@ -2,8 +2,10 @@
 
 
 use std::net::TcpStream;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use std::io::{Error, ErrorKind, Read, Write};
+
+use chrono::{DateTime, Utc};
 
 use protobuf::Message;
 
@@ -74,7 +76,8 @@ struct Packet {
     message_type: Option<MessageType>,
     payload_size: u16,
     payload: Vec<u8>,
-    packet_size: u16
+    packet_size: u16,
+    received_at: SystemTime
 }
 
 impl Packet {
@@ -88,7 +91,8 @@ impl Packet {
             message_type: None,
             payload_size: 0,
             payload: vec![],
-            packet_size: HEADER_SIZE as u16
+            packet_size: HEADER_SIZE as u16,
+            received_at: SystemTime::now()
         }
     }
 
@@ -106,6 +110,7 @@ impl Packet {
         self.payload_size = payload.len() as u16;
         self.payload = payload;
         self.packet_size = HEADER_SIZE as u16 + self.payload_size;
+        self.received_at = SystemTime::now();
 
         ret.extend_from_slice(&self.preamble);
         ret.extend_from_slice(&padding.to_be_bytes());
@@ -167,6 +172,7 @@ impl Packet {
         self.payload_size = u16::from_be_bytes([data[18], data[19]]);
         self.payload.extend_from_slice(&data[HEADER_SIZE..HEADER_SIZE + self.payload_size as usize]);
         self.packet_size = HEADER_SIZE as u16 + self.payload_size;
+        self.received_at = SystemTime::now();
 
         log::debug!("successfully deserialized packet: message_type={:?}, payload_size={}", self.message_type, self.payload_size);
         log::trace!("packet: {:?}", self);
@@ -178,111 +184,142 @@ impl Packet {
 
 #[derive(Debug)]
 pub enum ProtoMessage {
-    Live(proto::Live::Live),
-    Command(proto::Command::Command),
-    Settings(proto::Settings::Settings),
-    Configuration(proto::Configuration::Configuration),
-    Peak(proto::Peak::Peak),
-    Clock(proto::Clock::Clock),
-    Information(proto::Information::Information),
-    Error(proto::Error::Error),
-    Router(proto::Router::Router),
-    Filter(proto::Filter::Filter),
-    Peripheral(proto::Peripheral::Peripheral),
-    OnzenLive(proto::OnzenLive::OnzenLive),
-    OnzenSettings(proto::OnzenSettings::OnzenSettings)
+    Live { message: proto::Live::Live, received_at: SystemTime },
+    Command { message: proto::Command::Command, received_at: SystemTime },
+    Settings { message: proto::Settings::Settings, received_at: SystemTime },
+    Configuration { message: proto::Configuration::Configuration, received_at: SystemTime },
+    Peak { message: proto::Peak::Peak, received_at: SystemTime },
+    Clock { message: proto::Clock::Clock, received_at: SystemTime },
+    Information { message: proto::Information::Information, received_at: SystemTime },
+    Error { message: proto::Error::Error, received_at: SystemTime },
+    Router { message: proto::Router::Router, received_at: SystemTime },
+    Filter { message: proto::Filter::Filter, received_at: SystemTime },
+    Peripheral { message: proto::Peripheral::Peripheral, received_at: SystemTime },
+    OnzenLive { message: proto::OnzenLive::OnzenLive, received_at: SystemTime },
+    OnzenSettings { message: proto::OnzenSettings::OnzenSettings, received_at: SystemTime }
 }
 
 impl ProtoMessage {
     pub fn as_live(&self) -> Option<&proto::Live::Live> {
         match self {
-            ProtoMessage::Live(msg) => Some(msg),
+            ProtoMessage::Live { message, .. } => Some(message),
             _ => None,
         }
     }
 
     pub fn as_command(&self) -> Option<&proto::Command::Command> {
         match self {
-            ProtoMessage::Command(msg) => Some(msg),
+            ProtoMessage::Command { message, .. } => Some(message),
             _ => None,
         }
     }
 
     pub fn as_settings(&self) -> Option<&proto::Settings::Settings> {
         match self {
-            ProtoMessage::Settings(msg) => Some(msg),
+            ProtoMessage::Settings { message, .. } => Some(message),
             _ => None,
         }
     }
 
     pub fn as_configuration(&self) -> Option<&proto::Configuration::Configuration> {
         match self {
-            ProtoMessage::Configuration(msg) => Some(msg),
+            ProtoMessage::Configuration { message, .. } => Some(message),
             _ => None,
         }
     }
 
     pub fn as_peak(&self) -> Option<&proto::Peak::Peak> {
         match self {
-            ProtoMessage::Peak(msg) => Some(msg),
+            ProtoMessage::Peak { message, .. } => Some(message),
             _ => None,
         }
     }
 
     pub fn as_clock(&self) -> Option<&proto::Clock::Clock> {
         match self {
-            ProtoMessage::Clock(msg) => Some(msg),
+            ProtoMessage::Clock { message, .. } => Some(message),
             _ => None,
         }
     }
 
     pub fn as_information(&self) -> Option<&proto::Information::Information> {
         match self {
-            ProtoMessage::Information(msg) => Some(msg),
+            ProtoMessage::Information { message, .. } => Some(message),
             _ => None,
         }
     }
 
     pub fn as_error(&self) -> Option<&proto::Error::Error> {
         match self {
-            ProtoMessage::Error(msg) => Some(msg),
+            ProtoMessage::Error { message, .. } => Some(message),
             _ => None,
         }
     }
 
     pub fn as_router(&self) -> Option<&proto::Router::Router> {
         match self {
-            ProtoMessage::Router(msg) => Some(msg),
+            ProtoMessage::Router { message, .. } => Some(message),
             _ => None,
         }
     }
 
     pub fn as_filter(&self) -> Option<&proto::Filter::Filter> {
         match self {
-            ProtoMessage::Filter(msg) => Some(msg),
+            ProtoMessage::Filter { message, .. } => Some(message),
             _ => None,
         }
     }
 
     pub fn as_peripheral(&self) -> Option<&proto::Peripheral::Peripheral> {
         match self {
-            ProtoMessage::Peripheral(msg) => Some(msg),
+            ProtoMessage::Peripheral { message, .. } => Some(message),
             _ => None,
         }
     }
 
     pub fn as_onzen_live(&self) -> Option<&proto::OnzenLive::OnzenLive> {
         match self {
-            ProtoMessage::OnzenLive(msg) => Some(msg),
+            ProtoMessage::OnzenLive { message, .. } => Some(message),
             _ => None,
         }
     }
 
     pub fn as_onzen_settings(&self) -> Option<&proto::OnzenSettings::OnzenSettings> {
         match self {
-            ProtoMessage::OnzenSettings(msg) => Some(msg),
+            ProtoMessage::OnzenSettings { message, .. } => Some(message),
             _ => None,
         }
+    }
+
+    pub fn received_at(&self) -> &SystemTime {
+        match self {
+            ProtoMessage::Live { received_at, .. } => received_at,
+            ProtoMessage::Command { received_at, .. } => received_at,
+            ProtoMessage::Settings { received_at, .. } => received_at,
+            ProtoMessage::Configuration { received_at, .. } => received_at,
+            ProtoMessage::Peak { received_at, .. } => received_at,
+            ProtoMessage::Clock { received_at, .. } => received_at,
+            ProtoMessage::Information { received_at, .. } => received_at,
+            ProtoMessage::Error { received_at, .. } => received_at,
+            ProtoMessage::Router { received_at, .. } => received_at,
+            ProtoMessage::Filter { received_at, .. } => received_at,
+            ProtoMessage::Peripheral { received_at, .. } => received_at,
+            ProtoMessage::OnzenLive { received_at, .. } => received_at,
+            ProtoMessage::OnzenSettings { received_at, .. } => received_at,
+        }
+    }
+
+    pub fn received_at_datetime(&self) -> DateTime<Utc> {
+        let received_at = self.received_at();
+        let received_at_dt: DateTime<Utc> = (*received_at).into();
+        received_at_dt
+    }
+
+    pub fn received_at_formatted(&self, fmt_string: Option<&str>) -> String {
+        let received_at_dt = self.received_at_datetime();
+        let fmt = fmt_string.unwrap_or("%Y-%m-%d %H:%M:%S");
+        let received_at_fmt = received_at_dt.format(fmt).to_string();
+        received_at_fmt
     }
 }
 
@@ -297,20 +334,20 @@ impl TryFrom<&Packet> for ProtoMessage {
             .ok_or_else(|| Error::new(ErrorKind::InvalidData, "invalid message type in packet"))?;
 
         match message_type {
-            MessageType::Live => Ok(ProtoMessage::Live(proto::Live::Live::parse_from_bytes(&value.payload)?)),
-            MessageType::Command => Ok(ProtoMessage::Command(proto::Command::Command::parse_from_bytes(&value.payload)?)),
-            MessageType::Settings => Ok(ProtoMessage::Settings(proto::Settings::Settings::parse_from_bytes(&value.payload)?)),
-            MessageType::Configuration => Ok(ProtoMessage::Configuration(proto::Configuration::Configuration::parse_from_bytes(&value.payload)?)),
-            MessageType::Peak => Ok(ProtoMessage::Peak(proto::Peak::Peak::parse_from_bytes(&value.payload)?)),
-            MessageType::Clock => Ok(ProtoMessage::Clock(proto::Clock::Clock::parse_from_bytes(&value.payload)?)),
-            MessageType::Information => Ok(ProtoMessage::Information(proto::Information::Information::parse_from_bytes(&value.payload)?)),
-            MessageType::Error => Ok(ProtoMessage::Error(proto::Error::Error::parse_from_bytes(&value.payload)?)),
-            MessageType::Router => Ok(ProtoMessage::Router(proto::Router::Router::parse_from_bytes(&value.payload)?)),
+            MessageType::Live => Ok(ProtoMessage::Live { message: proto::Live::Live::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
+            MessageType::Command => Ok(ProtoMessage::Command { message: proto::Command::Command::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
+            MessageType::Settings => Ok(ProtoMessage::Settings { message: proto::Settings::Settings::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
+            MessageType::Configuration => Ok(ProtoMessage::Configuration { message: proto::Configuration::Configuration::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
+            MessageType::Peak => Ok(ProtoMessage::Peak { message: proto::Peak::Peak::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
+            MessageType::Clock => Ok(ProtoMessage::Clock { message: proto::Clock::Clock::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
+            MessageType::Information => Ok(ProtoMessage::Information { message: proto::Information::Information::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
+            MessageType::Error => Ok(ProtoMessage::Error { message: proto::Error::Error::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
+            MessageType::Router => Ok(ProtoMessage::Router { message: proto::Router::Router::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
             MessageType::Heartbeat => Err(Error::new(ErrorKind::Unsupported, "no corresponding proto for message type Heartbeat")),
-            MessageType::Filter => Ok(ProtoMessage::Filter(proto::Filter::Filter::parse_from_bytes(&value.payload)?)),
-            MessageType::Peripheral => Ok(ProtoMessage::Peripheral(proto::Peripheral::Peripheral::parse_from_bytes(&value.payload)?)),
-            MessageType::OnzenLive => Ok(ProtoMessage::OnzenLive(proto::OnzenLive::OnzenLive::parse_from_bytes(&value.payload)?)),
-            MessageType::OnzenSettings => Ok(ProtoMessage::OnzenSettings(proto::OnzenSettings::OnzenSettings::parse_from_bytes(&value.payload)?))
+            MessageType::Filter => Ok(ProtoMessage::Filter { message: proto::Filter::Filter::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
+            MessageType::Peripheral => Ok(ProtoMessage::Peripheral { message: proto::Peripheral::Peripheral::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
+            MessageType::OnzenLive => Ok(ProtoMessage::OnzenLive { message: proto::OnzenLive::OnzenLive::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
+            MessageType::OnzenSettings => Ok(ProtoMessage::OnzenSettings { message: proto::OnzenSettings::OnzenSettings::parse_from_bytes(&value.payload)?, received_at: value.received_at })
         }
     }
 }

@@ -5,11 +5,13 @@
 use std::{fs, os::windows::process};
 use std::path::PathBuf;
 
+use chrono::{DateTime, Utc};
 use protobuf::{Enum, Message, MessageDyn};
 use rusqlite::{Connection, Result, ToSql, params};
 
 
 use crate::proto;
+use crate::core::net::{MessageType, ProtoMessage, NetworkClient};
 
 
 // copied from core::config::AppConfigManager for now
@@ -590,7 +592,10 @@ impl DatabaseClient {
         Ok((process_run_id, connection_session_id))
     }
 
-    pub fn insert_message_clock(&self, _message: &proto::Clock::Clock) -> Result<(), rusqlite::Error> {
+    pub fn insert_message_clock(&self, message: &ProtoMessage) -> Result<(), rusqlite::Error> {
+        let msg = message.as_clock().ok_or(rusqlite::Error::InvalidQuery)?;
+        let msg_rec_at_str = message.received_at_formatted(None);
+
         let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
 
         self.conn.execute(
@@ -600,6 +605,7 @@ impl DatabaseClient {
                     "process_run_id",
                     "connection_session_id",
                     "message_received_at",
+
                     "year",
                     "month",
                     "day",
@@ -608,17 +614,32 @@ impl DatabaseClient {
                     "second"
                 )
                 VALUES (
-                    datetime('now'), ?1, ?2, datetime('now'),
-                    NULL, NULL, NULL, NULL, NULL, NULL
+                    datetime('now'),
+                    ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?
                 )
             "#,
-            params![process_run_id, connection_session_id],
+            params![
+                process_run_id,
+                connection_session_id,
+                msg_rec_at_str,
+
+                msg.year(),
+                msg.month(),
+                msg.day(),
+                msg.hour(),
+                msg.minute(),
+                msg.second()
+            ],
         )?;
 
         Ok(())
     }
 
-    pub fn insert_message_configuration(&self, _message: &proto::Configuration::Configuration) -> Result<(), rusqlite::Error> {
+    pub fn insert_message_configuration(&self, message: &ProtoMessage) -> Result<(), rusqlite::Error> {
+        let msg = message.as_configuration().ok_or(rusqlite::Error::InvalidQuery)?;
+        let msg_rec_at_str = message.received_at_formatted(None);
+
         let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
 
         self.conn.execute(
@@ -628,6 +649,7 @@ impl DatabaseClient {
                     "process_run_id",
                     "connection_session_id",
                     "message_received_at",
+
                     "pump1",
                     "pump2",
                     "pump3",
@@ -652,19 +674,50 @@ impl DatabaseClient {
                     "yess"
                 )
                 VALUES (
-                    datetime('now'), ?1, ?2, datetime('now'),
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                    NULL, NULL, NULL, NULL
+                    datetime('now'),
+                    ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?
                 )
             "#,
-            params![process_run_id, connection_session_id],
+            params![
+                process_run_id,
+                connection_session_id,
+                msg_rec_at_str,
+
+                msg.pump1(),
+                msg.pump2(),
+                msg.pump3(),
+                msg.pump4(),
+                msg.pump5(),
+                msg.blower1(),
+                msg.blower2(),
+                msg.lights(),
+                msg.stereo(),
+                msg.heater1(),
+                msg.heater2(),
+                msg.filter(),
+                msg.onzen(),
+                msg.ozone_peak_1(),
+                msg.ozone_peak_2(),
+                msg.exhaust_fan(),
+                msg.powerlines().value(),
+                msg.breaker_size(),
+                msg.smart_onzen(),
+                msg.fogger(),
+                msg.sds(),
+                msg.yess()
+            ],
         )?;
 
         Ok(())
     }
 
-    pub fn insert_message_error(&self, _message: &proto::Error::Error) -> Result<(), rusqlite::Error> {
+    pub fn insert_message_error(&self, message: &ProtoMessage) -> Result<(), rusqlite::Error> {
+        let msg = message.as_error().ok_or(rusqlite::Error::InvalidQuery)?;
+        let msg_rec_at_str = message.received_at_formatted(None);
+
         let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
 
         self.conn.execute(
@@ -674,6 +727,7 @@ impl DatabaseClient {
                     "process_run_id",
                     "connection_session_id",
                     "message_received_at",
+
                     "no_flow",
                     "flow_switch",
                     "heater_over_temperature",
@@ -686,17 +740,36 @@ impl DatabaseClient {
                     "heater_probe_disconnected"
                 )
                 VALUES (
-                    datetime('now'), ?1, ?2, datetime('now'),
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+                    datetime('now'),
+                    ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
                 )
             "#,
-            params![process_run_id, connection_session_id],
+            params![
+                process_run_id,
+                connection_session_id,
+                msg_rec_at_str,
+
+                msg.no_flow(),
+                msg.flow_switch(),
+                msg.heater_over_temperature(),
+                msg.spa_over_temperature(),
+                msg.spa_temperature_probe(),
+                msg.spa_high_limit(),
+                msg.eeprom(),
+                msg.freeze_protect(),
+                msg.ph_high(),
+                msg.heater_probe_disconnected()
+            ],
         )?;
 
         Ok(())
     }
 
-    pub fn insert_message_filter(&self, _message: &proto::Filter::Filter) -> Result<(), rusqlite::Error> {
+    pub fn insert_message_filter(&self, message: &ProtoMessage) -> Result<(), rusqlite::Error> {
+        let msg = message.as_filter().ok_or(rusqlite::Error::InvalidQuery)?;
+        let msg_rec_at_str = message.received_at_formatted(None);
+
         let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
 
         self.conn.execute(
@@ -706,22 +779,35 @@ impl DatabaseClient {
                     "process_run_id",
                     "connection_session_id",
                     "message_received_at",
+
                     "serial_nums",
                     "filter_state",
                     "install_dates"
                 )
                 VALUES (
-                    datetime('now'), ?1, ?2, datetime('now'),
-                    NULL, NULL, NULL
+                    datetime('now'),
+                    ?, ?, ?,
+                    ?, ?, ?
                 )
             "#,
-            params![process_run_id, connection_session_id],
+            params![
+                process_run_id,
+                connection_session_id,
+                msg_rec_at_str,
+
+                msg.serial_nums(),
+                msg.filter_state().value(),
+                msg.install_dates()
+            ],
         )?;
 
         Ok(())
     }
 
-    pub fn insert_message_information(&self, _message: &proto::Information::Information) -> Result<(), rusqlite::Error> {
+    pub fn insert_message_information(&self, message: &ProtoMessage) -> Result<(), rusqlite::Error> {
+        let msg = message.as_information().ok_or(rusqlite::Error::InvalidQuery)?;
+        let msg_rec_at_str = message.received_at_formatted(None);
+
         let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
 
         self.conn.execute(
@@ -731,6 +817,7 @@ impl DatabaseClient {
                     "process_run_id",
                     "connection_session_id",
                     "message_received_at",
+
                     "pack_serial_number",
                     "pack_firmware_version",
                     "pack_hardware_version",
@@ -756,19 +843,51 @@ impl DatabaseClient {
                     "rfid_serial_number"
                 )
                 VALUES (
-                    datetime('now'), ?1, ?2, datetime('now'),
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL
+                    datetime('now'),
+                    ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?
                 )
             "#,
-            params![process_run_id, connection_session_id],
+            params![
+                process_run_id,
+                connection_session_id,
+                msg_rec_at_str,
+
+                msg.pack_serial_number(),
+                msg.pack_firmware_version(),
+                msg.pack_hardware_version(),
+                msg.pack_product_id(),
+                msg.pack_board_id(),
+                msg.topside_product_id(),
+                msg.topside_software_version(),
+                msg.guid(),
+                msg.spa_type().value(),
+                msg.website_registration(),
+                msg.website_registration_confirm(),
+                msg.mac_address(),
+                msg.firmware_version(),
+                msg.product_code(),
+                msg.var_software_version(),
+                msg.spaboy_firmware_version(),
+                msg.spaboy_hardware_version(),
+                msg.spaboy_product_id(),
+                msg.spaboy_serial_number(),
+                msg.rfid_firmware_version(),
+                msg.rfid_hardware_version(),
+                msg.rfid_product_id(),
+                msg.rfid_serial_number()
+            ],
         )?;
 
         Ok(())
     }
 
-    pub fn insert_message_live(&self, message: &proto::Live::Live) -> Result<(), rusqlite::Error> {
+    pub fn insert_message_live(&self, message: &ProtoMessage) -> Result<(), rusqlite::Error> {
+        let msg = message.as_live().ok_or(rusqlite::Error::InvalidQuery)?;
+        let msg_rec_at_str = message.received_at_formatted(None);
+
         let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
 
         self.conn.execute(
@@ -813,55 +932,60 @@ impl DatabaseClient {
                 )
                 VALUES
                 (
-                    ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
-                    ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20,
-                    ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30,
-                    ?31, ?32, ?33, ?34, ?35
+                    datetime('now'),
+                    ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?
                 )
             "#,
             params![
-                "datetime('now')",
                 process_run_id,
                 connection_session_id,
-                "datetime('now')",
-                message.temperature_fahrenheit(),
-                message.temperature_setpoint_fahrenheit(),
-                message.pump_1().value(),
-                message.pump_2().value(),
-                message.pump_3().value(),
-                message.pump_4().value(),
-                message.pump_5().value(),
-                message.blower_1().value(),
-                message.blower_2().value(),
-                message.lights(),
-                message.stereo(),
-                message.heater_1().value(),
-                message.heater_2().value(),
-                message.filter().value(),
-                message.onzen(),
-                message.ozone().value(),
-                message.exhaust_fan(),
-                message.sauna().value(),
-                message.heater_adc(),
-                message.sauna_time_remaining(),
-                message.economy(),
-                message.current_adc(),
-                message.all_on(),
-                message.fogger(),
-                message.error(),
-                message.alarm(),
-                message.status(),
-                message.ph(),
-                message.orp(),
-                message.sds(),
-                message.yess()
+                msg_rec_at_str,
+
+                msg.temperature_fahrenheit(),
+                msg.temperature_setpoint_fahrenheit(),
+                msg.pump_1().value(),
+                msg.pump_2().value(),
+                msg.pump_3().value(),
+                msg.pump_4().value(),
+                msg.pump_5().value(),
+                msg.blower_1().value(),
+                msg.blower_2().value(),
+                msg.lights(),
+                msg.stereo(),
+                msg.heater_1().value(),
+                msg.heater_2().value(),
+                msg.filter().value(),
+                msg.onzen(),
+                msg.ozone().value(),
+                msg.exhaust_fan(),
+                msg.sauna().value(),
+                msg.heater_adc(),
+                msg.sauna_time_remaining(),
+                msg.economy(),
+                msg.current_adc(),
+                msg.all_on(),
+                msg.fogger(),
+                msg.error(),
+                msg.alarm(),
+                msg.status(),
+                msg.ph(),
+                msg.orp(),
+                msg.sds(),
+                msg.yess()
             ]
         )?;
 
         Ok(())
     }
 
-    pub fn insert_message_onzen_live(&self, _message: &proto::OnzenLive::OnzenLive) -> Result<(), rusqlite::Error> {
+    pub fn insert_message_onzen_live(&self, message: &ProtoMessage) -> Result<(), rusqlite::Error> {
+        let msg = message.as_onzen_live().ok_or(rusqlite::Error::InvalidQuery)?;
+        let msg_rec_at_str = message.received_at_formatted(None);
+
         let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
 
         self.conn.execute(
@@ -871,6 +995,7 @@ impl DatabaseClient {
                     "process_run_id",
                     "connection_session_id",
                     "message_received_at",
+
                     "guid",
                     "orp",
                     "ph_100",
@@ -895,19 +1020,50 @@ impl DatabaseClient {
                     "electrode_wear"
                 )
                 VALUES (
-                    datetime('now'), ?1, ?2, datetime('now'),
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                    NULL, NULL, NULL, NULL, NULL, NULL
+                    datetime('now'),
+                    ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?
                 )
             "#,
-            params![process_run_id, connection_session_id],
+            params![
+                process_run_id,
+                connection_session_id,
+                msg_rec_at_str,
+
+                msg.guid(),
+                msg.orp(),
+                msg.ph_100(),
+                msg.current(),
+                msg.voltage(),
+                msg.current_setpoint(),
+                msg.voltage_setpoint(),
+                msg.pump1(),
+                msg.pump2(),
+                msg.orp_state_machine(),
+                msg.electrode_state_machine(),
+                msg.electrode_id(),
+                msg.electrode_polarity().value(),
+                msg.electrode_1_resistance_1(),
+                msg.electrode_1_resistance_2(),
+                msg.electrode_2_resistance_1(),
+                msg.electrode_2_resistance_2(),
+                msg.command_mode(),
+                msg.electrode_mAH(),
+                msg.ph_color().value(),
+                msg.orp_color().value(),
+                msg.electrode_wear()
+            ],
         )?;
 
         Ok(())
     }
 
-    pub fn insert_message_onzen_settings(&self, _message: &proto::OnzenSettings::OnzenSettings) -> Result<(), rusqlite::Error> {
+    pub fn insert_message_onzen_settings(&self, message: &ProtoMessage) -> Result<(), rusqlite::Error> {
+        let msg = message.as_onzen_settings().ok_or(rusqlite::Error::InvalidQuery)?;
+        let msg_rec_at_str = message.received_at_formatted(None);
+
         let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
 
         self.conn.execute(
@@ -917,6 +1073,7 @@ impl DatabaseClient {
                     "process_run_id",
                     "connection_session_id",
                     "message_received_at",
+
                     "guid",
                     "over_voltage",
                     "under_voltage",
@@ -942,19 +1099,51 @@ impl DatabaseClient {
                     "sb_high_ph"
                 )
                 VALUES (
-                    datetime('now'), ?1, ?2, datetime('now'),
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL
+                    datetime('now'),
+                    ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?
                 )
             "#,
-            params![process_run_id, connection_session_id],
+            params![
+                process_run_id,
+                connection_session_id,
+                msg_rec_at_str,
+
+                msg.guid(),
+                msg.over_voltage(),
+                msg.under_voltage(),
+                msg.over_current(),
+                msg.under_current(),
+                msg.orp_high(),
+                msg.orp_low(),
+                msg.ph_high(),
+                msg.ph_low(),
+                msg.pwm_pump1_time_on(),
+                msg.pwm_pump1_time_off(),
+                msg.sampling_interval(),
+                msg.sampling_duration(),
+                msg.pwm_pump2_time_on(),
+                msg.pwm_pump2_time_off(),
+                msg.sb_low_cl(),
+                msg.sb_caution_low_cl(),
+                msg.sb_caution_high_cl(),
+                msg.sb_high_cl(),
+                msg.sb_low_ph(),
+                msg.sb_caution_low_ph(),
+                msg.sb_caution_high_ph(),
+                msg.sb_high_ph()
+            ],
         )?;
 
         Ok(())
     }
 
-    pub fn insert_message_peak(&self, _message: &proto::Peak::Peak) -> Result<(), rusqlite::Error> {
+    pub fn insert_message_peak(&self, message: &ProtoMessage) -> Result<(), rusqlite::Error> {
+        let msg = message.as_peak().ok_or(rusqlite::Error::InvalidQuery)?;
+        let msg_rec_at_str = message.received_at_formatted(None);
+
         let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
 
         self.conn.execute(
@@ -964,6 +1153,7 @@ impl DatabaseClient {
                     "process_run_id",
                     "connection_session_id",
                     "message_received_at",
+
                     "peaknum",
                     "peakstart1",
                     "peakend1",
@@ -992,20 +1182,55 @@ impl DatabaseClient {
                     "fri"
                 )
                 VALUES (
-                    datetime('now'), ?1, ?2, datetime('now'),
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                    NULL, NULL
+                    datetime('now'),
+                    ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?
                 )
             "#,
-            params![process_run_id, connection_session_id],
+            params![
+                process_run_id,
+                connection_session_id,
+                msg_rec_at_str,
+
+                msg.peaknum(),
+                msg.peakstart1(),
+                msg.peakend1(),
+                msg.peakstart2(),
+                msg.peakend2(),
+                msg.midpeaknum(),
+                msg.midpeakstart1(),
+                msg.midpeakend1(),
+                msg.midpeakstart2(),
+                msg.midpeakend2(),
+                msg.offpeakstart(),
+                msg.offpeakend(),
+                msg.offset(),
+                msg.peakheater(),
+                msg.peakfilter(),
+                msg.peakozone(),
+                msg.midpeakheater(),
+                msg.midpeakfilter(),
+                msg.midpeakozone(),
+                msg.sat(),
+                msg.sun(),
+                msg.mon(),
+                msg.tue(),
+                msg.wed(),
+                msg.thu(),
+                msg.fri()
+            ],
         )?;
 
         Ok(())
     }
 
-    pub fn insert_message_peripheral(&self, _message: &proto::Peripheral::Peripheral) -> Result<(), rusqlite::Error> {
+    pub fn insert_message_peripheral(&self, message: &ProtoMessage) -> Result<(), rusqlite::Error> {
+        let msg = message.as_peripheral().ok_or(rusqlite::Error::InvalidQuery)?;
+        let msg_rec_at_str = message.received_at_formatted(None);
+
         let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
 
         self.conn.execute(
@@ -1015,6 +1240,7 @@ impl DatabaseClient {
                     "process_run_id",
                     "connection_session_id",
                     "message_received_at",
+
                     "guid",
                     "hardware_version",
                     "firmware_version",
@@ -1022,17 +1248,31 @@ impl DatabaseClient {
                     "connected"
                 )
                 VALUES (
-                    datetime('now'), ?1, ?2, datetime('now'),
-                    NULL, NULL, NULL, NULL, NULL
+                    datetime('now'),
+                    ?, ?, ?,
+                    ?, ?, ?, ?, ?
                 )
             "#,
-            params![process_run_id, connection_session_id],
+            params![
+                process_run_id,
+                connection_session_id,
+                msg_rec_at_str,
+
+                msg.guid(),
+                msg.hardware_version(),
+                msg.firmware_version(),
+                msg.product_code().value(),
+                msg.connected()
+            ],
         )?;
 
         Ok(())
     }
 
-    pub fn insert_message_settings(&self, _message: &proto::Settings::Settings) -> Result<(), rusqlite::Error> {
+    pub fn insert_message_settings(&self, message: &ProtoMessage) -> Result<(), rusqlite::Error> {
+        let msg = message.as_settings().ok_or(rusqlite::Error::InvalidQuery)?;
+        let msg_rec_at_str = message.received_at_formatted(None);
+
         let (process_run_id, connection_session_id) = self.current_run_and_session_ids()?;
 
         self.conn.execute(
@@ -1042,6 +1282,7 @@ impl DatabaseClient {
                     "process_run_id",
                     "connection_session_id",
                     "message_received_at",
+
                     "max_filtration_frequency",
                     "min_filtration_frequency",
                     "filtration_frequency",
@@ -1070,14 +1311,46 @@ impl DatabaseClient {
                     "spaboy_hours"
                 )
                 VALUES (
-                    datetime('now'), ?1, ?2, datetime('now'),
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                    NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-                    NULL, NULL
+                    datetime('now'),
+                    ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?, ?, ?, ?, ?,
+                    ?, ?
                 )
             "#,
-            params![process_run_id, connection_session_id],
+            params![
+                process_run_id,
+                connection_session_id,
+                msg_rec_at_str,
+
+                msg.max_filtration_frequency(),
+                msg.min_filtration_frequency(),
+                msg.filtration_frequency(),
+                msg.max_filtration_duration(),
+                msg.min_filtration_duration(),
+                msg.filtration_duration(),
+                msg.max_onzen_hours(),
+                msg.min_onzen_hours(),
+                msg.onzen_hours(),
+                msg.max_onzen_cycles(),
+                msg.min_onzen_cycles(),
+                msg.onzen_cycles(),
+                msg.max_ozone_hours(),
+                msg.min_ozone_hours(),
+                msg.ozone_hours(),
+                msg.max_ozone_cycles(),
+                msg.min_ozone_cycles(),
+                msg.ozone_cycles(),
+                msg.filter_suspension(),
+                msg.flash_lights_on_error(),
+                msg.temperature_offset(),
+                msg.sauna_duration(),
+                msg.min_temperature(),
+                msg.max_temperature(),
+                msg.filtration_offset(),
+                msg.spaboy_hours()
+            ],
         )?;
 
         Ok(())

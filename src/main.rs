@@ -249,7 +249,7 @@ fn main () {
                 .unwrap_or_else(|e| {
                     fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
                 });
-            commands::query::display_message(message_type, proto_message, output_path.as_deref());
+            commands::query::display_message(&message_type, &proto_message, output_path.as_deref());
         },
         Commands::Poll {  } => {
             if ip_address.is_empty() {
