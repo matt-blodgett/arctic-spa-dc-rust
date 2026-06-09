@@ -12,49 +12,7 @@ use rusqlite::{Connection, Result, ToSql, params};
 
 use crate::proto;
 use crate::core::net::{MessageType, ProtoMessage, NetworkClient};
-
-
-// copied from core::config::AppConfigManager for now
-// move to util module later
-fn default_db_dir() -> PathBuf {
-    if let Some(proj_dirs) = directories::ProjectDirs::from("", "", "arctic-spa-dc-rust") {
-        proj_dirs.data_dir().to_path_buf()
-    } else {
-        // fallback to current directory
-        PathBuf::from(".")
-    }
-}
-fn default_db_path() -> PathBuf {
-    default_db_dir().join("asdc.db")
-}
-fn load_or_create(path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
-    // create db directory if it doesn't exist
-    let db_dir = path.parent().unwrap();
-    if !db_dir.exists() {
-        log::debug!("creating db directory: {:#?}", db_dir.display());
-        fs::create_dir_all(db_dir)?;
-    }
-
-    // // if db file doesn't exist, create it from template
-    // if !db_path.exists() {
-    //     log::debug!("db file not found at {:#?}, creating with default values", db_path.display());
-
-    //     let file = std::fs::File::create(&db_path)?;
-
-    //     log::info!("created db file {:#?}", db_path.display());
-    //     log::info!("{:}", file.metadata()?.len());
-    // }
-
-
-    // XXX: reset db for prototyping, delete if exists
-    if path.exists() {
-        log::debug!("db file found at {:#?}, deleting for prototyping", path.display());
-        fs::remove_file(path)?;
-    }
-
-
-    Ok(())
-}
+use crate::core::utils::{default_database_path, initialize_path};
 
 
 pub struct DatabaseClient {
@@ -65,9 +23,16 @@ pub struct DatabaseClient {
 }
 
 impl DatabaseClient {
+
     pub fn open(path: Option<&PathBuf>) -> Result<Self, Box<dyn std::error::Error>> {
-        let db_path = path.unwrap_or(&default_db_path()).to_path_buf();
-        load_or_create(&db_path)?;
+        let db_path = path.unwrap_or(&default_database_path()).to_path_buf();
+        let is_new_file = initialize_path(&db_path)?;
+
+        // XXX: reset db for prototyping, delete if exists
+        if !is_new_file {
+            log::debug!("db file found at {:#?}, deleting for prototyping", db_path.display());
+            fs::remove_file(&db_path)?;
+        }
 
         let conn = Connection::open(&db_path)?;
 

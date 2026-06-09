@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#[allow(unused_imports)]
 
 
 use std::fs;
@@ -6,6 +7,8 @@ use std::path::PathBuf;
 
 use serde_json::Value;
 use serde::{Serialize, Deserialize};
+
+use crate::core::utils::{default_config_path, initialize_path};
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -37,35 +40,14 @@ pub struct AppConfigManager {
 }
 
 impl AppConfigManager {
-    /// get the default config directory for this application
-    fn default_config_dir() -> PathBuf {
-        if let Some(proj_dirs) = directories::ProjectDirs::from("", "", "arctic-spa-dc-rust") {
-            proj_dirs.config_dir().to_path_buf()
-        } else {
-            // fallback to current directory
-            PathBuf::from(".")
-        }
-    }
 
-    /// get the default config file path
-    fn default_config_path() -> PathBuf {
-        Self::default_config_dir().join("config.json")
-    }
-
-    /// load or create config from the default OS location
     pub fn load_or_create() -> Result<Self, Box<dyn std::error::Error>> {
-        let config_path = Self::default_config_path();
-        let config_dir = config_path.parent().unwrap();
-
-        // create config directory if it doesn't exist
-        if !config_dir.exists() {
-            log::debug!("creating config directory: {:#?}", config_dir.display());
-            fs::create_dir_all(config_dir)?;
-        }
+        let config_path = default_config_path();
+        let is_new_file = initialize_path(&config_path)?;
 
         // if config file doesn't exist, create it from template
-        if !config_path.exists() {
-            log::debug!("config file not found at {:#?}, creating with default values", config_path.display());
+        if is_new_file {
+            log::debug!("config file {:#?} not found, setting default values", config_path.display());
 
             // let template_config_str = r#"
             //     {
