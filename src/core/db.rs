@@ -34,6 +34,8 @@ impl DatabaseClient {
             fs::remove_file(&db_path)?;
         }
 
+        log::info!("opening database at {:#?}", db_path.display());
+
         let conn = Connection::open(&db_path)?;
 
         let mut client = Self {
@@ -536,6 +538,7 @@ impl DatabaseClient {
         self.conn.execute(sql_insert, [])?;
         let process_run_id = self.conn.last_insert_rowid();
         self.process_run_id = Some(process_run_id);
+        log::debug!("created process_run: id={}", process_run_id);
         Ok(())
     }
 
@@ -548,6 +551,7 @@ impl DatabaseClient {
         self.conn.execute(sql_insert, params![process_run_id, host])?;
         let connection_session_id = self.conn.last_insert_rowid();
         self.connection_session_id = Some(connection_session_id);
+        log::debug!("created connection_session: id={}", connection_session_id);
         Ok(())
     }
 
@@ -597,6 +601,8 @@ impl DatabaseClient {
                 msg.second()
             ],
         )?;
+
+        log::debug!("inserted message_clock: received_at={}", msg_rec_at_str);
 
         Ok(())
     }
@@ -676,6 +682,8 @@ impl DatabaseClient {
             ],
         )?;
 
+        log::debug!("inserted message_configuration: received_at={}", msg_rec_at_str);
+
         Ok(())
     }
 
@@ -728,6 +736,8 @@ impl DatabaseClient {
             ],
         )?;
 
+        log::debug!("inserted message_error: received_at={}", msg_rec_at_str);
+
         Ok(())
     }
 
@@ -765,6 +775,8 @@ impl DatabaseClient {
                 msg.install_dates()
             ],
         )?;
+
+        log::debug!("inserted message_filter: received_at={}", msg_rec_at_str);
 
         Ok(())
     }
@@ -846,7 +858,131 @@ impl DatabaseClient {
             ],
         )?;
 
+        log::debug!("inserted message_information: received_at={}", msg_rec_at_str);
+
         Ok(())
+    }
+
+    pub fn check_message_live_changed(&self, message: &proto::Live::Live) -> Result<bool, rusqlite::Error> {
+        // let msg = message.as_live().ok_or(rusqlite::Error::InvalidQuery)?;
+
+        let msg = message;
+
+        let last_msg: proto::Live::Live = self.conn.query_row(
+            r#"
+                SELECT
+                    temperature_fahrenheit,
+                    temperature_setpoint_fahrenheit,
+                    pump_1,
+                    pump_2,
+                    pump_3,
+                    pump_4,
+                    pump_5,
+                    blower_1,
+                    blower_2,
+                    lights,
+                    stereo,
+                    heater_1,
+                    heater_2,
+                    filter,
+                    onzen,
+                    ozone,
+                    exhaust_fan,
+                    sauna,
+                    heater_adc,
+                    sauna_time_remaining,
+                    economy,
+                    current_adc,
+                    all_on,
+                    fogger,
+                    error,
+                    alarm,
+                    status,
+                    ph,
+                    orp,
+                    sds,
+                    yess
+                FROM message_live
+                WHERE process_run_id = ? AND connection_session_id = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+            "#,
+            params![
+                self.process_run_id.ok_or(rusqlite::Error::InvalidQuery)?,
+                self.connection_session_id.ok_or(rusqlite::Error::InvalidQuery)?
+            ],
+            |row| {
+                let mut msg = proto::Live::Live::new();
+
+                msg.set_temperature_fahrenheit(row.get(0)?);
+                msg.set_temperature_setpoint_fahrenheit(row.get(1)?);
+                msg.set_pump_1(proto::Live::live::PumpStatus::from_i32(row.get(2)?).unwrap());
+                msg.set_pump_2(proto::Live::live::PumpStatus::from_i32(row.get(3)?).unwrap());
+                msg.set_pump_3(proto::Live::live::PumpStatus::from_i32(row.get(4)?).unwrap());
+                msg.set_pump_4(proto::Live::live::PumpStatus::from_i32(row.get(5)?).unwrap());
+                msg.set_pump_5(proto::Live::live::PumpStatus::from_i32(row.get(6)?).unwrap());
+                msg.set_blower_1(proto::Live::live::PumpStatus::from_i32(row.get(7)?).unwrap());
+                msg.set_blower_2(proto::Live::live::PumpStatus::from_i32(row.get(8)?).unwrap());
+                msg.set_lights(row.get::<_, i32>(9)? != 0);
+                msg.set_stereo(row.get::<_, i32>(10)? != 0);
+                msg.set_heater_1(proto::Live::live::HeaterStatus::from_i32(row.get(11)?).unwrap());
+                msg.set_heater_2(proto::Live::live::HeaterStatus::from_i32(row.get(12)?).unwrap());
+                msg.set_filter(proto::Live::live::FilterStatus::from_i32(row.get(13)?).unwrap());
+                msg.set_onzen(row.get::<_, i32>(14)? != 0);
+                msg.set_ozone(proto::Live::live::OzoneStatus::from_i32(row.get(15)?).unwrap());
+                msg.set_exhaust_fan(row.get::<_, i32>(16)? != 0);
+                msg.set_sauna(proto::Live::live::SaunaStatus::from_i32(row.get(17)?).unwrap());
+                msg.set_heater_adc(row.get(18)?);
+                msg.set_sauna_time_remaining(row.get(19)?);
+                msg.set_economy(row.get::<_, i32>(20)? != 0);
+                msg.set_current_adc(row.get(21)?);
+                msg.set_all_on(row.get::<_, i32>(22)? != 0);
+                msg.set_fogger(row.get::<_, i32>(23)? != 0);
+                msg.set_error(row.get(24)?);
+                msg.set_alarm(row.get(25)?);
+                msg.set_status(row.get(26)?);
+                msg.set_ph(row.get(27)?);
+                msg.set_orp(row.get(28)?);
+                msg.set_sds(row.get(29)?);
+                msg.set_yess(row.get(30)?);
+
+                Ok(msg)
+            }
+        )?;
+
+        log::debug!("temperature_fahrenheit: old={}, new={}", last_msg.temperature_fahrenheit(), msg.temperature_fahrenheit());
+        log::debug!("temperature_setpoint_fahrenheit: old={}, new={}", last_msg.temperature_setpoint_fahrenheit(), msg.temperature_setpoint_fahrenheit());
+        log::debug!("pump_1: old={:?}, new={:?}", last_msg.pump_1(), msg.pump_1());
+        log::debug!("pump_2: old={:?}, new={:?}", last_msg.pump_2(), msg.pump_2());
+        log::debug!("pump_3: old={:?}, new={:?}", last_msg.pump_3(), msg.pump_3());
+        log::debug!("pump_4: old={:?}, new={:?}", last_msg.pump_4(), msg.pump_4());
+        log::debug!("pump_5: old={:?}, new={:?}", last_msg.pump_5(), msg.pump_5());
+        log::debug!("blower_1: old={:?}, new={:?}", last_msg.blower_1(), msg.blower_1());
+        log::debug!("blower_2: old={:?}, new={:?}", last_msg.blower_2(), msg.blower_2());
+        log::debug!("lights: old={}, new={}", last_msg.lights(), msg.lights());
+        log::debug!("stereo: old={}, new={}", last_msg.stereo(), msg.stereo());
+        log::debug!("heater_1: old={:?}, new={:?}", last_msg.heater_1(), msg.heater_1());
+        log::debug!("heater_2: old={:?}, new={:?}", last_msg.heater_2(), msg.heater_2());
+        log::debug!("filter: old={:?}, new={:?}", last_msg.filter(), msg.filter());
+        log::debug!("onzen: old={}, new={}", last_msg.onzen(), msg.onzen());
+        log::debug!("ozone: old={:?}, new={:?}", last_msg.ozone(), msg.ozone());
+        log::debug!("exhaust_fan: old={}, new={}", last_msg.exhaust_fan(), msg.exhaust_fan());
+        log::debug!("sauna: old={:?}, new={:?}", last_msg.sauna(), msg.sauna());
+        log::debug!("heater_adc: old={}, new={}", last_msg.heater_adc(), msg.heater_adc());
+        log::debug!("sauna_time_remaining: old={}, new={}", last_msg.sauna_time_remaining(), msg.sauna_time_remaining());
+        log::debug!("economy: old={}, new={}", last_msg.economy(), msg.economy());
+        log::debug!("current_adc: old={}, new={}", last_msg.current_adc(), msg.current_adc());
+        log::debug!("all_on: old={}, new={}", last_msg.all_on(), msg.all_on());
+        log::debug!("fogger: old={}, new={}", last_msg.fogger(), msg.fogger());
+        log::debug!("error: old={}, new={}", last_msg.error(), msg.error());
+        log::debug!("alarm: old={}, new={}", last_msg.alarm(), msg.alarm());
+        log::debug!("status: old={}, new={}", last_msg.status(), msg.status());
+        log::debug!("ph: old={}, new={}", last_msg.ph(), msg.ph());
+        log::debug!("orp: old={}, new={}", last_msg.orp(), msg.orp());
+        log::debug!("sds: old={}, new={}", last_msg.sds(), msg.sds());
+        log::debug!("yess: old={}, new={}", last_msg.yess(), msg.yess());
+
+        Ok(false)
     }
 
     pub fn insert_message_live(&self, message: &ProtoMessage) -> Result<(), rusqlite::Error> {
@@ -944,6 +1080,8 @@ impl DatabaseClient {
             ]
         )?;
 
+        log::debug!("inserted message_live: received_at={}", msg_rec_at_str);
+
         Ok(())
     }
 
@@ -1021,6 +1159,8 @@ impl DatabaseClient {
                 msg.electrode_wear()
             ],
         )?;
+
+        log::debug!("inserted message_onzen_live: received_at={}", msg_rec_at_str);
 
         Ok(())
     }
@@ -1101,6 +1241,8 @@ impl DatabaseClient {
                 msg.sb_high_ph()
             ],
         )?;
+
+        log::debug!("inserted message_onzen_settings: received_at={}", msg_rec_at_str);
 
         Ok(())
     }
@@ -1188,6 +1330,8 @@ impl DatabaseClient {
             ],
         )?;
 
+        log::debug!("inserted message_peak: received_at={}", msg_rec_at_str);
+
         Ok(())
     }
 
@@ -1229,6 +1373,8 @@ impl DatabaseClient {
                 msg.connected()
             ],
         )?;
+
+        log::debug!("inserted message_peripheral: received_at={}", msg_rec_at_str);
 
         Ok(())
     }
@@ -1317,6 +1463,36 @@ impl DatabaseClient {
             ],
         )?;
 
+        log::debug!("inserted message_settings: received_at={}", msg_rec_at_str);
+
         Ok(())
+    }
+
+    pub fn insert_message(&self, message: &ProtoMessage) -> Result<(), rusqlite::Error> {
+        match message.message_type() {
+            MessageType::Clock => self.insert_message_clock(message),
+            MessageType::Command => {
+                log::warn!("received Command message, but insert_message_command is not implemented, skipping");
+                Ok(())
+            },
+            MessageType::Configuration => self.insert_message_configuration(message),
+            MessageType::Error => self.insert_message_error(message),
+            MessageType::Filter => self.insert_message_filter(message),
+            MessageType::Information => self.insert_message_information(message),
+            MessageType::Live => self.insert_message_live(message),
+            MessageType::OnzenLive => self.insert_message_onzen_live(message),
+            MessageType::OnzenSettings => self.insert_message_onzen_settings(message),
+            MessageType::Peak => self.insert_message_peak(message),
+            MessageType::Peripheral => self.insert_message_peripheral(message),
+            MessageType::Router => {
+                log::warn!("received Router message, but insert_message_router is not implemented, skipping");
+                Ok(())
+            },
+            MessageType::Settings => self.insert_message_settings(message),
+            MessageType::Heartbeat => {
+                log::warn!("received Heartbeat message, but insert_message_heartbeat is not implemented, skipping");
+                Ok(())
+            },
+        }
     }
 }

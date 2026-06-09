@@ -99,7 +99,7 @@ impl Packet {
     pub fn serialize(&mut self, message_type_value: u16, payload: Vec<u8>) -> Vec<u8> {
         let mut ret: Vec<u8> = vec![];
 
-        log::debug!("serializing packet: message_type_value={:?}", message_type_value);
+        log::trace!("serializing packet: message_type_value={:?}", message_type_value);
 
         self.preamble = HEADER_PREAMBLE;
         let padding: u32 = 0;  // 4 bytes reserved for checksum after calculation
@@ -142,7 +142,7 @@ impl Packet {
     }
 
     pub fn deserialize(&mut self, data: &Vec<u8>) -> Result<(), Error> {
-        log::debug!("deserializing packet: bytes_len={}", data.len());
+        log::trace!("deserializing packet: bytes_len={}", data.len());
 
         if data.len() < HEADER_SIZE {
             return Err(
@@ -291,6 +291,24 @@ impl ProtoMessage {
         }
     }
 
+    pub fn message_type(&self) -> MessageType {
+        match self {
+            ProtoMessage::Live { .. } => MessageType::Live,
+            ProtoMessage::Command { .. } => MessageType::Command,
+            ProtoMessage::Settings { .. } => MessageType::Settings,
+            ProtoMessage::Configuration { .. } => MessageType::Configuration,
+            ProtoMessage::Peak { .. } => MessageType::Peak,
+            ProtoMessage::Clock { .. } => MessageType::Clock,
+            ProtoMessage::Information { .. } => MessageType::Information,
+            ProtoMessage::Error { .. } => MessageType::Error,
+            ProtoMessage::Router { .. } => MessageType::Router,
+            ProtoMessage::Filter { .. } => MessageType::Filter,
+            ProtoMessage::Peripheral { .. } => MessageType::Peripheral,
+            ProtoMessage::OnzenLive { .. } => MessageType::OnzenLive,
+            ProtoMessage::OnzenSettings { .. } => MessageType::OnzenSettings,
+        }
+    }
+
     pub fn received_at(&self) -> &SystemTime {
         match self {
             ProtoMessage::Live { received_at, .. } => received_at,
@@ -328,7 +346,7 @@ impl TryFrom<&Packet> for ProtoMessage {
     type Error = Error;
 
     fn try_from(value: &Packet) -> Result<Self, Error> {
-        log::debug!("parsing packet payload to protobuf message: message_type_value={:?}, payload_size={}", value.message_type_value, value.payload_size);
+        log::trace!("parsing packet payload to protobuf message: message_type_value={:?}, payload_size={}", value.message_type_value, value.payload_size);
 
         let message_type = value.message_type
             .ok_or_else(|| Error::new(ErrorKind::InvalidData, "invalid message type in packet"))?;
@@ -412,15 +430,15 @@ impl NetworkClient {
         stream.write_all(&packet_bytes)?;
 
         match MessageType::try_from(message_type_value) {
-            Ok(message_type) => log::info!("successfully wrote packet for message type {:?}", message_type),
-            Err(_) => log::info!("successfully wrote packet for message type value {}", message_type_value),
+            Ok(message_type) => log::debug!("successfully wrote packet for message type {:?}", message_type),
+            Err(_) => log::debug!("successfully wrote packet for message type value {}", message_type_value),
         };
 
         Ok(())
     }
 
     pub fn request_message(&mut self, message_type: MessageType) -> Result<(), Error> {
-        log::info!("requesting message {:?}", message_type);
+        log::debug!("requesting message {:?}", message_type);
         self.write_packet(message_type.into(), vec![])?;
         Ok(())
     }
@@ -428,12 +446,13 @@ impl NetworkClient {
     fn packets_to_messages(&self, packets: &Vec<Packet>) -> Result<Vec<ProtoMessage>, Error> {
         let mut ret: Vec<ProtoMessage> = vec![];
 
-        log::info!("parsing {} packets to messages", packets.len());
+        log::trace!("parsing {} packets to messages", packets.len());
 
         for packet in packets.iter() {
             let msg = match ProtoMessage::try_from(packet) {
                 Ok(m) => m,
                 Err(e) => {
+                    // if packet.message_type_value != MessageType::Heartbeat as u16 {
                     log::error!("error parsing message: {}", e);
                     continue;
                 }
@@ -447,7 +466,7 @@ impl NetworkClient {
     fn bytes_to_packets(&self, bytes_array: &Vec<u8>) -> Result<Vec<Packet>, Error> {
         let mut ret: Vec<Packet> = vec![];
 
-        log::info!("parsing {} bytes into packets", bytes_array.len());
+        log::trace!("parsing {} bytes into packets", bytes_array.len());
 
         let total_bytes_read: u32 = bytes_array.len() as u32;
         let mut parsed_byte_count: u32 = 0;
@@ -474,7 +493,7 @@ impl NetworkClient {
     fn read_bytes(&mut self) -> Result<Vec<u8>, Error> {
         let mut ret: Vec<u8> = vec![];
 
-        log::info!("reading bytes from stream");
+        log::trace!("reading bytes from stream");
 
         let stream = self.get_stream_mut()?;
 
@@ -492,7 +511,7 @@ impl NetworkClient {
             }
         }
 
-        log::info!("total bytes read: {}", ret.len());
+        log::trace!("total bytes read: {}", ret.len());
 
         Ok(ret)
     }

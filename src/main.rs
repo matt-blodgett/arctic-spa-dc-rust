@@ -255,8 +255,14 @@ fn main () {
             if ip_address.is_empty() {
                 fatal_error_and_exit("no ip address specified; aborting");
             }
-
-            commands::poll::poll_device(&ip_address);
+            // if testing_mode {
+            //     commands::poll::db_populate_mock_data(&ip_address);
+            //     return;
+            // }
+            commands::poll::poll_device(&ip_address)
+                .unwrap_or_else(|e| {
+                    fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
+                });
         },
         Commands::Config { command } => {
             match command {
