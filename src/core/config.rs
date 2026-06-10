@@ -20,6 +20,29 @@ pub enum ConfigValue {
     Bool(bool),
 }
 
+
+impl ConfigValue {
+    pub fn as_str(&self) -> &str {
+        let value = match self {
+            ConfigValue::Str(s) => s.as_str(),
+            ConfigValue::Bool(b) => if *b { "true" } else { "false" },
+        };
+        value
+    }
+    pub fn as_bool(&self) -> bool {
+        let value = match self {
+            ConfigValue::Str(s) => match s.to_lowercase().as_str() {
+                "1" | "true" | "on" | "yes" | "y" | "enable" | "enabled" => Some(true),
+                "0" | "false" | "off" | "no" | "n" | "disable" | "disabled" => Some(false),
+                _ => None,
+            },
+            ConfigValue::Bool(b) => Some(*b),
+        };
+        value.unwrap_or(false)
+    }
+}
+
+
 // #[derive(Debug)]
 // impl ConfigValue {
 //     pub fn as_str(&self) -> Option<&str> {
@@ -78,7 +101,7 @@ impl AppConfig {
 
 
 pub struct AppConfigManager {
-    pub data: AppConfig,
+    data: AppConfig,
     path: PathBuf,
 }
 
@@ -143,11 +166,14 @@ impl AppConfigManager {
         match property_name {
             ConfigPropertyName::IpAddress => self.data.ip_address = value.as_str().unwrap_or_default().to_string(),
             ConfigPropertyName::LogLevel => self.data.log_level = value.as_str().unwrap_or_default().to_string(),
-            ConfigPropertyName::MockServerMode => self.data.mock_server_mode = value.as_bool().unwrap_or_else(
-                || value.as_str().map(
-                    |s| matches!(s.to_lowercase().as_str(), "1" | "y" | "yes" | "true" | "on" | "enable" | "enabled")
-                ).unwrap_or(false)),
-
+            ConfigPropertyName::MockServerMode => self.data.mock_server_mode = value
+                .as_bool()
+                .unwrap_or_else(|| value
+                    .as_str()
+                    .map(|s|
+                        matches!(s.to_lowercase().as_str(), "1" | "y" | "yes" | "true" | "on" | "enable" | "enabled")
+                    ).unwrap_or(false)
+                ),
             ConfigPropertyName::MockServerIpAddress => self.data.mock_server_ip_address = value.as_str().unwrap_or_default().to_string(),
         };
 

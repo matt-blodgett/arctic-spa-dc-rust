@@ -10,7 +10,7 @@ use std::{thread, time::Duration};
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use std::collections::HashMap;
 
-
+use serde::{Deserialize, Serialize, de};
 use protobuf::Enum;
 
 use crate::commands::poll;
@@ -22,16 +22,14 @@ use crate::core::net::{MessageType, ProtoMessage, NetworkClient};
 const MAX_POLLING_DURATION_MS: u128 = 15 * 1000;
 
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct PollInterval {
     refresh_interval_ms: u64,
-    last_refresh_time: SystemTime,
+    last_refresh_time: Option<SystemTime>,
 }
-
-
 type MessageIntervals = HashMap<MessageType, PollInterval>;
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 struct PollConfig {
     ip_address: String,
     message_intervals: MessageIntervals,
@@ -45,51 +43,51 @@ pub fn test() {
         message_intervals: MessageIntervals::from([
             (MessageType::Clock, PollInterval {
                 refresh_interval_ms: 5_000,
-                last_refresh_time: SystemTime::now()
+                last_refresh_time: Some(SystemTime::now())
             }),
             (MessageType::Configuration, PollInterval {
                 refresh_interval_ms: 10_000,
-                last_refresh_time: SystemTime::now()
+                last_refresh_time: Some(SystemTime::now())
             }),
             (MessageType::Error, PollInterval {
                 refresh_interval_ms: 15_000,
-                last_refresh_time: SystemTime::now()
+                last_refresh_time: Some(SystemTime::now())
             }),
             (MessageType::Filter, PollInterval {
                 refresh_interval_ms: 20_000,
-                last_refresh_time: SystemTime::now()
+                last_refresh_time: Some(SystemTime::now())
             }),
             (MessageType::Information, PollInterval {
                 refresh_interval_ms: 25_000,
-                last_refresh_time: SystemTime::now()
+                last_refresh_time: Some(SystemTime::now())
             }),
             (MessageType::Live, PollInterval {
                 refresh_interval_ms: 30_000,
-                last_refresh_time: SystemTime::now()
+                last_refresh_time: Some(SystemTime::now())
             }),
             (MessageType::OnzenLive, PollInterval {
                 refresh_interval_ms: 35_000,
-                last_refresh_time: SystemTime::now()
+                last_refresh_time: Some(SystemTime::now())
             }),
             (MessageType::OnzenSettings, PollInterval {
                 refresh_interval_ms: 40_000,
-                last_refresh_time: SystemTime::now()
+                last_refresh_time: Some(SystemTime::now())
             }),
             (MessageType::Peak, PollInterval {
                 refresh_interval_ms: 45_000,
-                last_refresh_time: SystemTime::now()
+                last_refresh_time: Some(SystemTime::now())
             }),
             (MessageType::Peripheral, PollInterval {
                 refresh_interval_ms: 50_000,
-                last_refresh_time: SystemTime::now()
+                last_refresh_time: Some(SystemTime::now())
             }),
             (MessageType::Router, PollInterval {
                 refresh_interval_ms: 55_000,
-                last_refresh_time: SystemTime::now()
+                last_refresh_time: Some(SystemTime::now())
             }),
             (MessageType::Settings, PollInterval {
                 refresh_interval_ms: 60_000,
-                last_refresh_time: SystemTime::now()
+                last_refresh_time: Some(SystemTime::now())
             }),
         ]),
     };
@@ -101,6 +99,8 @@ pub fn test() {
 
 pub fn poll_device(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
     log::info!("starting polling: ip_address={:}", ip_address);
+
+    // ---------------------------------------------
 
     let running = Arc::new(AtomicBool::new(true));
     let shutdown_flag = Arc::clone(&running);
@@ -114,12 +114,17 @@ pub fn poll_device(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("press Ctrl+C to stop polling and exit gracefully");
 
+    // ---------------------------------------------
+
     log::debug!("connecting to device at {:}", ip_address);
     let mut network_client = NetworkClient::connect(ip_address)?;
 
     log::debug!("initializing database");
     let mut db_client = db::DatabaseClient::open(None, false)?;
     db_client.create_connection_session(ip_address)?;
+
+
+    // ---------------------------------------------
 
     let start_time = SystemTime::now();
 

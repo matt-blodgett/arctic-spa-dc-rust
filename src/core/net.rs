@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(unused_imports)]
 
 
 use std::net::TcpStream;
@@ -7,16 +8,17 @@ use std::io::{Error, ErrorKind, Read, Write};
 
 use chrono::{DateTime, Utc};
 
-use protobuf::Message;
-
 use crate::proto;
+use protobuf::Message;
+use serde::{Deserialize, Serialize, de};
+
 
 
 const HEADER_SIZE: usize = 20;
 const HEADER_PREAMBLE: [u8; 4] = [171, 173, 29, 58];
 const HEADER_MAGIC: i32 = -1414718150;
 
-
+#[derive(Deserialize, Serialize)]
 #[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum MessageType {
     Live = 0,
