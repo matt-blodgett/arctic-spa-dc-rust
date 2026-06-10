@@ -101,37 +101,37 @@ impl MockState {
 
     fn default_message_filter() -> proto::Filter::Filter {
         let mut message = proto::Filter::Filter::new();
-        message.set_serial_nums("SN000".to_string());
+        message.set_serial_nums(String::from("SN000"));
         message.set_filter_state(proto::Filter::filter::FilterState::FILTER_PURCHASE);
-        message.set_install_dates("2020-01-01".to_string());
+        message.set_install_dates(String::from("2020-01-01"));
         message
     }
 
     fn default_message_information() -> proto::Information::Information {
         let mut message = proto::Information::Information::new();
-        message.set_pack_serial_number("".to_string());
-        message.set_pack_firmware_version("1.22.0033".to_string());
-        message.set_pack_hardware_version("1.12".to_string());
-        message.set_pack_product_id("ARCTIC".to_string());
-        message.set_pack_board_id("NA".to_string());
-        message.set_topside_product_id("TSC-14".to_string());
-        message.set_topside_software_version("106".to_string());
-        message.set_guid("c9da908d-f5a0-4cfa-82cb-3b3a36d3b561".to_string());
+        message.set_pack_serial_number(String::from(""));
+        message.set_pack_firmware_version(String::from("1.22.0033"));
+        message.set_pack_hardware_version(String::from("1.12"));
+        message.set_pack_product_id(String::from("ARCTIC"));
+        message.set_pack_board_id(String::from("NA"));
+        message.set_topside_product_id(String::from("TSC-14"));
+        message.set_topside_software_version(String::from("106"));
+        message.set_guid(String::from("f69a9o5g-f6a0-4v7q-71hh-2c2b46g4c098"));
         message.set_spa_type(proto::Information::information::SpaType::SPA_TYPE_HOT_TUB);
         message.set_website_registration(false);
         message.set_website_registration_confirm(false);
         message.set_mac_address(vec![0xff, 0xff, 0xff, 0xff, 0xff, 0xff]);
         message.set_firmware_version(53674022);
         message.set_product_code(65537);
-        message.set_var_software_version("".to_string());
-        message.set_spaboy_firmware_version("".to_string());
-        message.set_spaboy_hardware_version("".to_string());
-        message.set_spaboy_product_id("".to_string());
-        message.set_spaboy_serial_number("".to_string());
-        message.set_rfid_firmware_version("".to_string());
-        message.set_rfid_hardware_version("".to_string());
-        message.set_rfid_product_id("".to_string());
-        message.set_rfid_serial_number("".to_string());
+        message.set_var_software_version(String::from(""));
+        message.set_spaboy_firmware_version(String::from(""));
+        message.set_spaboy_hardware_version(String::from(""));
+        message.set_spaboy_product_id(String::from(""));
+        message.set_spaboy_serial_number(String::from(""));
+        message.set_rfid_firmware_version(String::from(""));
+        message.set_rfid_hardware_version(String::from(""));
+        message.set_rfid_product_id(String::from(""));
+        message.set_rfid_serial_number(String::from(""));
         message
     }
 
@@ -139,7 +139,7 @@ impl MockState {
         let mut message = proto::Live::Live::new();
         message.set_temperature_fahrenheit(102);
         message.set_temperature_setpoint_fahrenheit(104);
-        message.set_pump_1(proto::Live::live::PumpStatus::PUMP_LOW);
+        message.set_pump_1(proto::Live::live::PumpStatus::PUMP_OFF);
         message.set_pump_2(proto::Live::live::PumpStatus::PUMP_OFF);
         message.set_pump_3(proto::Live::live::PumpStatus::PUMP_OFF);
         message.set_pump_4(proto::Live::live::PumpStatus::PUMP_OFF);
@@ -148,11 +148,11 @@ impl MockState {
         message.set_blower_2(proto::Live::live::PumpStatus::PUMP_OFF);
         message.set_lights(false);
         message.set_stereo(false);
-        message.set_heater_1(proto::Live::live::HeaterStatus::HEATER_HEATING);
+        message.set_heater_1(proto::Live::live::HeaterStatus::HEATER_IDLE);
         message.set_heater_2(proto::Live::live::HeaterStatus::HEATER_IDLE);
         message.set_filter(proto::Live::live::FilterStatus::FILTER_IDLE);
         message.set_onzen(false);
-        message.set_ozone(proto::Live::live::OzoneStatus::OZONE_ACTIVE);
+        message.set_ozone(proto::Live::live::OzoneStatus::OZONE_IDLE);
         message.set_exhaust_fan(false);
         message.set_sauna(proto::Live::live::SaunaStatus::SAUNA_NORMAL);
         message.set_heater_adc(724);
@@ -173,7 +173,7 @@ impl MockState {
 
     fn default_message_onzen_live() -> proto::OnzenLive::OnzenLive {
         let mut message = proto::OnzenLive::OnzenLive::new();
-        message.set_guid("0603e02a-af2d-a003-5b1a-7ffaf5001e87".to_string());
+        message.set_guid(String::from("x67a2o5g-f6a0-5h9p-71xx-3f2b46g4c980"));
         message.set_orp(599);
         message.set_ph_100(727);
         message.set_current(4);
@@ -200,7 +200,7 @@ impl MockState {
 
     fn default_message_onzen_settings() -> proto::OnzenSettings::OnzenSettings {
         let mut message = proto::OnzenSettings::OnzenSettings::new();
-        message.set_guid("0603e02a-af2d-a003-5b1a-7ffaf5001e87".to_string());
+        message.set_guid(String::from("x67a2o5g-f6a0-5h9p-71xx-3f2b46g4c980"));
         message.set_over_voltage(13000);
         message.set_under_voltage(3000);
         message.set_over_current(7000);
@@ -259,7 +259,7 @@ impl MockState {
 
     fn default_message_peripheral() -> proto::Peripheral::Peripheral {
         let mut message = proto::Peripheral::Peripheral::new();
-        message.set_guid("0603e02a-af2d-a003-5b1a-7ffaf5001e87".to_string());
+        message.set_guid(String::from("x67a2o5g-f6a0-5h9p-71xx-3f2b46g4c980"));
         message.set_hardware_version(50593792);
         message.set_firmware_version(51249155);
         message.set_product_code(proto::Peripheral::peripheral::PeripheralProductCode::PERIPHERAL_PRODUCT_CODE_ONZEN);
@@ -269,7 +269,7 @@ impl MockState {
 
     fn default_message_router() -> proto::Router::Router {
         let mut message = proto::Router::Router::new();
-        message.set_ssid(String::from("BEL123"));
+        message.set_ssid(String::from("BELL 123"));
         message.set_password(String::from("password"));
         message.set_encryption(proto::Router::router::Encryption::ENCRYPTION_WPA2);
         message.set_protocol(proto::Router::router::Protocol::PROTOCOL_AES);
@@ -498,10 +498,7 @@ fn read_packet(stream: &mut TcpStream) -> Result<(MessageType, Vec<u8>), Error> 
     stream.read_exact(&mut header)?;
 
     if header[0..4] != HEADER_PREAMBLE {
-        return Err(Error::new(
-            ErrorKind::InvalidData,
-            format!("invalid packet preamble: {:?}", &header[0..4]),
-        ));
+        return Err(Error::new(ErrorKind::InvalidData, format!("invalid packet preamble: {:?}", &header[0..4])));
     }
 
     let message_type_value = u16::from_be_bytes([header[16], header[17]]);

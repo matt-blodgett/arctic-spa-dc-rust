@@ -169,7 +169,7 @@ This is great for prototyping or sandboxing without worrying about damage to you
 asdc start-mock-server --ip-address "127.0.0.1"
 
 # in a new terminal, connect to the mock server
-asdc query live --mock-server-mode --mock-server-ip-address "127.0.0.1"
+asdc query live --mock-server-mode --mock-server-ip-address --ip-address "172.0.0.1
 
 # set configs for easier testing
 asdc config set mock-server-mode 1

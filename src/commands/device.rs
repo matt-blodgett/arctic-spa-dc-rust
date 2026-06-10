@@ -458,7 +458,7 @@ pub fn get_device_property_value(ip_address: &str, property_name: DeviceProperty
     Ok(value)
 }
 pub fn display_device_property_value(property_name: DevicePropertyNameGet, value: &String) -> () {
-    println!("device value: {:?} = {:?}", property_name.as_name(), value);
+    println!("device value: {:?}={:?}", property_name.as_name(), value);
 }
 pub fn get_and_display_all_device_properties(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("displaying all device properties");

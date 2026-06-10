@@ -5,12 +5,16 @@ use clap::ValueEnum;
 #[derive(ValueEnum, Copy, Clone, Debug)]
 pub enum ConfigPropertyName {
     /// Hot tub IP Address
+    #[value(alias = "ip-address", alias = "ip_address")]
     IpAddress,
     /// Log Level
+    #[value(alias = "log-level", alias = "log_level")]
     LogLevel,
     /// Use local running mock server
+    #[value(alias = "mock-server.mode", alias = "mock-server-mode", alias = "mock_server_mode")]
     MockServerMode,
     /// Mock server IP Address
+    #[value(alias = "mock-server.ip-address", alias = "mock-server-ip-address", alias = "mock_server_ip_address")]
     MockServerIpAddress,
 }
 
