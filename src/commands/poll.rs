@@ -17,94 +17,21 @@ use crate::commands::poll;
 use crate::proto;
 use crate::core::db;
 use crate::core::net::{MessageType, ProtoMessage, NetworkClient};
+use crate::core::config::AppConfigManager;
 
 
-const MAX_POLLING_DURATION_MS: u128 = 15 * 1000;
+pub fn poll_device(ip_address: &str, config: &AppConfigManager) -> Result<(), Box<dyn std::error::Error>> {
+    let max_polling_duration_ms = config
+        .get_path_value("polling.max_polling_duration_ms")
+        .and_then(|v| v.as_u64())
+        .unwrap_or_default();
 
-
-#[derive(Serialize, Deserialize, Debug)]
-struct PollInterval {
-    refresh_interval_ms: u64,
-    last_refresh_time: Option<SystemTime>,
-}
-type MessageIntervals = HashMap<MessageType, PollInterval>;
-
-#[derive(Serialize, Deserialize, Debug)]
-struct PollConfig {
-    ip_address: String,
-    message_intervals: MessageIntervals,
-}
-
-
-pub fn test() {
-
-    let poll_config = PollConfig {
-        ip_address: "".to_string(),
-        message_intervals: MessageIntervals::from([
-            (MessageType::Clock, PollInterval {
-                refresh_interval_ms: 5_000,
-                last_refresh_time: Some(SystemTime::now())
-            }),
-            (MessageType::Configuration, PollInterval {
-                refresh_interval_ms: 10_000,
-                last_refresh_time: Some(SystemTime::now())
-            }),
-            (MessageType::Error, PollInterval {
-                refresh_interval_ms: 15_000,
-                last_refresh_time: Some(SystemTime::now())
-            }),
-            (MessageType::Filter, PollInterval {
-                refresh_interval_ms: 20_000,
-                last_refresh_time: Some(SystemTime::now())
-            }),
-            (MessageType::Information, PollInterval {
-                refresh_interval_ms: 25_000,
-                last_refresh_time: Some(SystemTime::now())
-            }),
-            (MessageType::Live, PollInterval {
-                refresh_interval_ms: 30_000,
-                last_refresh_time: Some(SystemTime::now())
-            }),
-            (MessageType::OnzenLive, PollInterval {
-                refresh_interval_ms: 35_000,
-                last_refresh_time: Some(SystemTime::now())
-            }),
-            (MessageType::OnzenSettings, PollInterval {
-                refresh_interval_ms: 40_000,
-                last_refresh_time: Some(SystemTime::now())
-            }),
-            (MessageType::Peak, PollInterval {
-                refresh_interval_ms: 45_000,
-                last_refresh_time: Some(SystemTime::now())
-            }),
-            (MessageType::Peripheral, PollInterval {
-                refresh_interval_ms: 50_000,
-                last_refresh_time: Some(SystemTime::now())
-            }),
-            (MessageType::Router, PollInterval {
-                refresh_interval_ms: 55_000,
-                last_refresh_time: Some(SystemTime::now())
-            }),
-            (MessageType::Settings, PollInterval {
-                refresh_interval_ms: 60_000,
-                last_refresh_time: Some(SystemTime::now())
-            }),
-        ]),
-    };
-    println!("poll_config: {:#?}", poll_config);
-
-    println!("test {:?}", poll_config.message_intervals[&MessageType::Live]);
-}
-
-
-pub fn poll_device(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
-    log::info!("starting polling: ip_address={:}", ip_address);
+    log::info!("starting polling: ip_address={:}, max_duration={:}ms", ip_address, max_polling_duration_ms);
 
     // ---------------------------------------------
 
     let running = Arc::new(AtomicBool::new(true));
     let shutdown_flag = Arc::clone(&running);
-
     if let Err(e) = ctrlc::set_handler(move || {
         shutdown_flag.store(false, Ordering::SeqCst);
     }) {
@@ -177,8 +104,9 @@ pub fn poll_device(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
             thread::sleep(Duration::from_millis(1_000));
         }
 
-        if start_time.elapsed()?.as_millis() > MAX_POLLING_DURATION_MS {
-            log::info!("reached max polling duration of {} milliseconds, exiting polling loop", MAX_POLLING_DURATION_MS);
+
+        if max_polling_duration_ms > 0 && start_time.elapsed()?.as_millis() > max_polling_duration_ms as u128 {
+            log::info!("reached max polling duration of {} milliseconds, exiting polling loop", max_polling_duration_ms);
             break;
         }
 

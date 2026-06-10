@@ -11,11 +11,12 @@ mod proto;
 mod core;
 mod commands;
 
+
 use commands::device::{DevicePropertyNameGet, DevicePropertyNameSet};
 use commands::query::QueryMessageName;
-use commands::config::ConfigPropertyName;
 
 use crate::commands::mock_server;
+use crate::core::logging::DEFAULT_LOGGING_LEVEL;
 
 
 #[derive(Parser)]
@@ -27,17 +28,17 @@ struct Cli {
     #[arg(long, value_name = "FILE_PATH", global = true)]
     config_path: Option<PathBuf>,
 
-    /// Mock server mode (connect to local running mock server for testing)
-    #[arg(long, global = true)]
-    mock_server_mode: bool,
+    /// Hot tub IP Address
+    #[arg(short, long, value_name = "IP_ADDRESS", global = true)]
+    ip_address: Option<String>,
 
     /// Logging level filter
     #[arg(short = 'l', long, value_name = "LOG_LEVEL", global = true)]
     log_level: Option<core::logging::LogLevel>,
 
-    /// Hot tub IP Address
-    #[arg(short, long, value_name = "IP_ADDRESS", global = true)]
-    ip_address: Option<String>,
+    /// Mock server mode (connect to local running mock server for testing)
+    #[arg(long, global = true)]
+    mock_server_mode: bool,
 
     #[command(subcommand)]
     command: Commands,
@@ -110,14 +111,12 @@ enum ConfigCommands {
     /// Display a config property
     Get {
         /// Config property to display
-        #[arg(value_enum)]
-        property_name: ConfigPropertyName,
+        property_path: String,
     },
     /// Set a config property
     Set {
         /// Config property to set
-        #[arg(value_enum)]
-        property_name: ConfigPropertyName,
+        property_path: String,
 
         /// Value to set the property to
         value: String,
@@ -174,12 +173,10 @@ fn main () {
 
     // if cli arg for log_level is not present, logging is not initialized - check config file or use default value
     if !logging_initialized {
-        let log_level_config = config.get_value(ConfigPropertyName::LogLevel).as_str().to_string();
-        let log_level = if !log_level_config.is_empty() {
-            core::logging::LogLevel::from(log_level_config.as_str())
-        } else {
-            core::logging::DEFAULT_LOGGING_LEVEL
-        };
+        let log_level = config
+            .get_path_value("logging.level")
+            .and_then(|value| serde_json::from_value::<core::logging::LogLevel>(value).ok())
+            .unwrap_or(core::logging::DEFAULT_LOGGING_LEVEL);
         core::logging::init_logging(log_level);
         log::debug!("logging initialized: level={}", log::max_level());
     }
@@ -189,11 +186,20 @@ fn main () {
     log::info!("initializing app");
 
     let cli_ip_address = cli.ip_address;
-    let config_ip_address = config.get_value(ConfigPropertyName::IpAddress).as_str().to_string();
+    let config_ip_address = config
+        .get_path_value("ip_address")
+        .and_then(|value| serde_json::from_value::<String>(value).ok())
+        .unwrap_or_default();
     let cli_mock_server_mode = cli.mock_server_mode;
-    let config_mock_server_mode = config.get_value(ConfigPropertyName::MockServerMode).as_bool();
-    let config_mock_server_ip_address = config.get_value(ConfigPropertyName::MockServerIpAddress).as_str().to_string();
-    let mock_server_mode = cli_mock_server_mode || config_mock_server_mode;
+    let config_mock_server_enabled = config
+        .get_path_value("mock_server.enabled")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(false);
+    let config_mock_server_ip_address = config
+        .get_path_value("mock_server.ip_address")
+        .and_then(|value| serde_json::from_value::<String>(value).ok())
+        .unwrap_or_default();
+    let mock_server_mode = cli_mock_server_mode || config_mock_server_enabled;
 
     // ensure any ip provided in cli args take precendence
     let mut ip_address = if cli_ip_address.is_some() {
@@ -202,10 +208,10 @@ fn main () {
         // now we'll check if we are running a mock server
         if mock_server_mode {
             // use the mock server ip if set in config file
-            config_mock_server_ip_address.to_string()
+            config_mock_server_ip_address.clone()
         } else {
             // use config file ip last
-            config_ip_address.to_string()
+            config_ip_address.clone()
         }
     };
     // ultimate fallback
@@ -230,7 +236,7 @@ fn main () {
         );
     }
 
-    log::debug!("using ip_address={}", ip_address);
+    log::debug!("using ip_address={:}", ip_address);
 
     // ---------------------------------------------
 
@@ -240,7 +246,7 @@ fn main () {
         Commands::Discover { update_config } => {
             let mut devices = if mock_server_mode {
                 log::info!("mock server mode discover: returning local mock device");
-                vec![config_mock_server_ip_address.to_string()]
+                vec![config_mock_server_ip_address.clone()]
             } else {
                 commands::discover::discover_devices()
             };
@@ -259,11 +265,10 @@ fn main () {
                     log::info!("updating config with first discovered device's IP address: {}", first_device_ip);
                     println!("updating config with first discovered device's IP address: {}", first_device_ip);
 
-                    config.set_value(ConfigPropertyName::IpAddress, &first_device_ip.into())
+                    config.set_path_value("ip_address", serde_json::Value::String(first_device_ip.clone()))
                         .unwrap_or_else(|e| {
                             fatal_error_and_exit(&format!("failed to set config: {:?}", e));
                         });
-
                     log::info!("config updated successfully");
                     println!("config updated successfully");
                 }
@@ -307,28 +312,26 @@ fn main () {
         Commands::Poll {  } => {
             assert_ip_address(&ip_address);
 
-            commands::poll::test();
-
-            // commands::poll::poll_device(&ip_address)
-            //     .unwrap_or_else(|e| {
-            //         fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
-            //     });
+            commands::poll::poll_device(&ip_address, &config)
+                .unwrap_or_else(|e| {
+                    fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
+                });
         },
         Commands::Config { command } => {
             match command {
-                ConfigCommands::Get { property_name } => {
-                    let value = match config.get_value(*property_name) {
-                        core::config::ConfigValue::Str(s) => s,
-                        core::config::ConfigValue::Bool(b) => b.to_string(),
-                    };
-                    println!("got config value -> {:?} = {:?}", property_name, value);
+                ConfigCommands::Get { property_path } => {
+                    let value = config.get_path_value(property_path)
+                        .unwrap_or_else(|| {
+                            fatal_error_and_exit(&format!("failed to get config value for path '{}'", property_path));
+                        });
+                    println!("got config value -> {:?} = {:?}", property_path, value);
                 },
-                ConfigCommands::Set { property_name, value } => {
-                    config.set_value(*property_name, &value.clone().into())
+                ConfigCommands::Set { property_path, value } => {
+                    config.set_path_value(property_path, value.clone().into())
                         .unwrap_or_else(|e| {
                             fatal_error_and_exit(&format!("failed to set config: {:?}", e));
                         });
-                    println!("set config value -> {:?} = {:?}", property_name, value);
+                    println!("set config value -> {:?} = {:?}", property_path, value);
                 },
                 ConfigCommands::List {  } => {
                     let config_json_string = config.to_string_pretty()
@@ -351,14 +354,14 @@ fn main () {
             let host = if ip_address.is_some() {
                 ip_address.clone().unwrap()
             } else if !config_mock_server_ip_address.is_empty() {
-                config_mock_server_ip_address.to_string()
+                config_mock_server_ip_address.clone()
             } else {
                 mock_server::DEFAULT_HOST.to_string()
             };
 
             let bind_address = format!("{}:{}", host, mock_server::DEFAULT_PORT);
 
-            log::debug!("starting mock server: bind_address={}", bind_address);
+            log::debug!("starting mock server: bind_address={:}", bind_address);
 
             commands::mock_server::run(&bind_address)
                 .unwrap_or_else(|e| {

@@ -2,11 +2,15 @@
 
 
 use std::io::Write;
+use std::str::FromStr;
 
 use clap::ValueEnum;
+use serde::{Deserialize, Serialize};
 
 
-#[derive(ValueEnum, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize)]
+#[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
 pub enum LogLevel {
     Off,
     Error,
@@ -29,29 +33,32 @@ impl LogLevel {
     }
 }
 
-impl From<&str> for LogLevel {
-    fn from(value: &str) -> Self {
-        match value.to_lowercase().as_str() {
-            "off" => LogLevel::Off,
-            "error" => LogLevel::Error,
-            "warn" | "warning" => LogLevel::Warn,
-            "info" => LogLevel::Info,
-            "debug" => LogLevel::Debug,
-            "trace" => LogLevel::Trace,
-            _ => LogLevel::Off,
-        }
+impl std::fmt::Display for LogLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let text = match self {
+            LogLevel::Off => "off",
+            LogLevel::Error => "error",
+            LogLevel::Warn => "warn",
+            LogLevel::Info => "info",
+            LogLevel::Debug => "debug",
+            LogLevel::Trace => "trace",
+        };
+        write!(f, "{}", text)
     }
 }
 
-impl ToString for LogLevel {
-    fn to_string(&self) -> String {
-        match self {
-            LogLevel::Off => "off".to_string(),
-            LogLevel::Error => "error".to_string(),
-            LogLevel::Warn => "warn".to_string(),
-            LogLevel::Info => "info".to_string(),
-            LogLevel::Debug => "debug".to_string(),
-            LogLevel::Trace => "trace".to_string(),
+impl FromStr for LogLevel {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value.trim().to_lowercase().as_str() {
+            "off" => Ok(LogLevel::Off),
+            "error" => Ok(LogLevel::Error),
+            "warn" | "warning" => Ok(LogLevel::Warn),
+            "info" => Ok(LogLevel::Info),
+            "debug" => Ok(LogLevel::Debug),
+            "trace" => Ok(LogLevel::Trace),
+            _ => Err(format!("unsupported log level: {}", value)),
         }
     }
 }

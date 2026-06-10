@@ -3,98 +3,157 @@
 
 
 use std::fs;
+use std::hash::Hash;
 use std::path::PathBuf;
 
 use clap::builder::Str;
+use protobuf::Message;
 use serde_json::Value;
 use serde::{Deserialize, Serialize, de};
 
 use crate::core::utils::{default_config_path, initialize_path};
 
-use crate::commands::config::ConfigPropertyName;
+// use crate::commands::config::ConfigPropertyName;
+use std::collections::HashMap;
+use std::time::SystemTime;
+
+use crate::commands::mock_server;
+use crate::core::net::MessageType;
+use crate::core::logging::{self, LogLevel};
 
 
-#[derive(Debug)]
-pub enum ConfigValue {
-    Str(String),
-    Bool(bool),
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MockServerConfig {
+    #[serde(default = "MockServerConfig::default_mock_server_ip_address")]
+    pub ip_address: String,
+    #[serde(default)]
+    pub enabled: bool,
 }
 
+impl MockServerConfig {
+    fn default_mock_server_ip_address() -> String { String::from(mock_server::DEFAULT_HOST) }
 
-impl ConfigValue {
-    pub fn as_str(&self) -> &str {
-        let value = match self {
-            ConfigValue::Str(s) => s.as_str(),
-            ConfigValue::Bool(b) => if *b { "true" } else { "false" },
-        };
-        value
-    }
-    pub fn as_bool(&self) -> bool {
-        let value = match self {
-            ConfigValue::Str(s) => match s.to_lowercase().as_str() {
-                "1" | "true" | "on" | "yes" | "y" | "enable" | "enabled" => Some(true),
-                "0" | "false" | "off" | "no" | "n" | "disable" | "disabled" => Some(false),
-                _ => None,
-            },
-            ConfigValue::Bool(b) => Some(*b),
-        };
-        value.unwrap_or(false)
+    pub fn default() -> Self {
+        Self {
+            ip_address: Self::default_mock_server_ip_address(),
+            enabled: false,
+        }
     }
 }
 
 
-// #[derive(Debug)]
-// impl ConfigValue {
-//     pub fn as_str(&self) -> Option<&str> {
-//         match self {
-//             ConfigValue::Str(s) => Some(s.as_str()),
-//             ConfigValue::Bool(b) => Some(if *b { "true" } else { "false" }),
-//         }
-//     }
-//     pub fn as_bool(&self) -> Option<bool> {
-//         match self {
-//             ConfigValue::Str(s) => match s.to_lowercase().as_str() {
-//                 "1" | "true" | "on" | "yes" | "y" | "enable" | "enabled" => Some(true),
-//                 "0" | "false" | "off" | "no" | "n" | "disable" | "disabled" => Some(false),
-//                 _ => None,
-//             },
-//             ConfigValue::Bool(b) => Some(*b),
-//         }
-//     }
-// }
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MessagePollingConfig {
+    pub refresh_interval_ms: u64,
+    pub once_per_session: bool,
+}
+
+pub type MessagePollingConfigs = HashMap<MessageType, MessagePollingConfig>;
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PollingConfig {
+    pub messages: MessagePollingConfigs,
+    pub max_polling_duration_ms: u64,
+}
+
+impl PollingConfig {
+    pub fn default() -> Self {
+        let messages = MessagePollingConfigs::from([
+            (MessageType::Clock, MessagePollingConfig {
+                refresh_interval_ms: 59_000,
+                once_per_session: false,
+            }),
+            (MessageType::Configuration, MessagePollingConfig {
+                refresh_interval_ms: 0,
+                once_per_session: true,
+            }),
+            (MessageType::Error, MessagePollingConfig {
+                refresh_interval_ms: 15_000,
+                once_per_session: false,
+            }),
+            (MessageType::Filter, MessagePollingConfig {
+                refresh_interval_ms: 0,
+                once_per_session: true,
+            }),
+            (MessageType::Information, MessagePollingConfig {
+                refresh_interval_ms: 0,
+                once_per_session: true,
+            }),
+            (MessageType::Live, MessagePollingConfig {
+                refresh_interval_ms: 2_500,
+                once_per_session: false,
+            }),
+            (MessageType::OnzenLive, MessagePollingConfig {
+                refresh_interval_ms: 2_500,
+                once_per_session: false,
+            }),
+            (MessageType::OnzenSettings, MessagePollingConfig {
+                refresh_interval_ms: 0,
+                once_per_session: true,
+            }),
+            (MessageType::Peak, MessagePollingConfig {
+                refresh_interval_ms: 0,
+                once_per_session: true,
+            }),
+            (MessageType::Peripheral, MessagePollingConfig {
+                refresh_interval_ms: 0,
+                once_per_session: true,
+            }),
+            (MessageType::Router, MessagePollingConfig {
+                refresh_interval_ms: 0,
+                once_per_session: true,
+            }),
+            (MessageType::Settings, MessagePollingConfig {
+                refresh_interval_ms: 0,
+                once_per_session: true,
+            }),
+        ]);
+
+        Self {
+            messages,
+            max_polling_duration_ms: 0
+        }
+    }
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct LoggingConfig {
+    #[serde(default = "LoggingConfig::default_level")]
+    pub level: logging::LogLevel,
+}
+
+impl LoggingConfig {
+    fn default_level() -> logging::LogLevel { logging::DEFAULT_LOGGING_LEVEL }
+
+    pub fn default() -> Self {
+        Self {
+            level: Self::default_level(),
+        }
+    }
+}
 
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppConfig {
     #[serde(default)]
     pub ip_address: String,
-    #[serde(default = "AppConfig::default_log_level")]
-    pub log_level: String,
-    #[serde(default)]
-    pub mock_server_mode: bool,
-    #[serde(default = "AppConfig::default_mock_server_ip_address")]
-    pub mock_server_ip_address: String,
+    pub logging: LoggingConfig,
+    pub mock_server: MockServerConfig,
+    pub polling: PollingConfig,
+
 }
 
 impl AppConfig {
-    fn default_log_level() -> String { String::from("off") }
-    fn default_mock_server_ip_address() -> String { String::from("127.0.0.1") }
+    fn default_ip_address() -> String { String::from("") }
 
     pub fn default() -> Self {
         Self {
-            ip_address: String::from(""),
-            log_level: Self::default_log_level(),
-            mock_server_mode: false,
-            mock_server_ip_address: Self::default_mock_server_ip_address(),
-        }
-    }
-
-    pub fn get_value(&self, property_name: &ConfigPropertyName) -> ConfigValue {
-        match property_name {
-            ConfigPropertyName::IpAddress           => ConfigValue::Str(self.ip_address.clone()),
-            ConfigPropertyName::LogLevel            => ConfigValue::Str(self.log_level.clone()),
-            ConfigPropertyName::MockServerMode      => ConfigValue::Bool(self.mock_server_mode),
-            ConfigPropertyName::MockServerIpAddress => ConfigValue::Str(self.mock_server_ip_address.clone()),
+            ip_address: Self::default_ip_address(),
+            logging: LoggingConfig::default(),
+            polling: PollingConfig::default(),
+            mock_server: MockServerConfig::default(),
         }
     }
 }
@@ -106,6 +165,31 @@ pub struct AppConfigManager {
 }
 
 impl AppConfigManager {
+
+    // TODO: ADD LOGGING
+    pub fn get_path_value(&self, path: &str) -> Option<serde_json::Value> {
+        let json = serde_json::to_value(&self.data).ok()?;
+        path.split('.').fold(Some(json), |node, key| {
+            node?.get(key).cloned()
+        })
+    }
+
+    pub fn set_path_value(&mut self, path: &str, value: serde_json::Value) -> Result<(), Box<dyn std::error::Error>> {
+        let mut json = serde_json::to_value(&self.data)?;
+        // let keys: Vec<&str> = path.split('.').collect();
+
+        let pointer_path = format!("/{}", path.replace('.', "/"));
+        // println!("pointer_path: {:#?}", pointer_path);
+
+        if let Some(old_value) = json.pointer_mut(&pointer_path) {
+            *old_value = value;
+        }
+
+        self.data = serde_json::from_value(json)?;
+        self.save()?;
+
+        Ok(())
+    }
 
     pub fn load_or_create() -> Result<Self, Box<dyn std::error::Error>> {
         let config_path = default_config_path();
@@ -119,7 +203,7 @@ impl AppConfigManager {
             let file = std::fs::File::create(&config_path)?;
             serde_json::to_writer_pretty(file, &default_config)?;
 
-            log::info!("created config file {:#?}", config_path.display());
+            log::info!("created new config file {:#?}", config_path.display());
             return Ok(Self {
                 data: default_config,
                 path: config_path,
@@ -130,57 +214,57 @@ impl AppConfigManager {
         log::debug!("loading config from {:#?}", config_path.display());
         let config_content = fs::read_to_string(&config_path)?;
 
-        let data: AppConfig = serde_json::from_str(&config_content).unwrap();
+        let data: AppConfig = serde_json::from_str(&config_content).unwrap_or_else(|_| {
+            log::warn!("failed to parse config file, overwriting with default values");
+            AppConfig::default()
+        });
+
+        let config_manager = Self {
+            data,
+            path: config_path.to_path_buf(),
+        };
+
+        config_manager.save()?;
 
         log::info!("config loaded successfully from {:#?}", config_path.display());
-        Ok(Self {
-            data,
-            path: config_path,
-        })
+
+        Ok(config_manager)
     }
 
     /// load config from a custom file path
+    /// if the file doesn't exist or is invalid, it will be created with default values
     pub fn load_from_path(config_path: &PathBuf) -> Result<Self, Box<dyn std::error::Error>> {
         log::debug!("loading config from custom location {:#?}", config_path.display());
-        let config_content = fs::read_to_string(&config_path)?;
-        let data: AppConfig = serde_json::from_str(&config_content).unwrap();
-        log::info!("config loaded successfully from {:#?}", config_path.display());
-        Ok(Self {
+
+        let is_new_file = initialize_path(config_path)?;
+
+        let data: AppConfig = if is_new_file {
+            log::debug!("config file {:#?} not found, creating with default values", config_path.display());
+            AppConfig::default()
+        } else {
+            let config_content = fs::read_to_string(&config_path)?;
+            serde_json::from_str(&config_content).unwrap_or_else(|_| {
+                log::warn!("failed to parse config file, overwriting with default values");
+                AppConfig::default()
+            })
+        };
+
+        let config_manager = Self {
             data,
             path: config_path.to_path_buf(),
-        })
+        };
+
+        config_manager.save()?;
+
+        log::info!("config loaded successfully from {:#?}", config_path.display());
+
+        Ok(config_manager)
     }
 
     pub fn save(&self) -> Result<(), std::io::Error> {
         let file = std::fs::File::create(&self.path)?;
         serde_json::to_writer_pretty(file, &self.data)?;
         log::trace!("config saved to {:#?}", self.path.display());
-        Ok(())
-    }
-
-    pub fn get_value(&self, property_name: ConfigPropertyName) -> ConfigValue {
-        self.data.get_value(&property_name)
-    }
-
-    pub fn set_value(&mut self, property_name: ConfigPropertyName, value: &Value) -> Result<(), Box<dyn std::error::Error>> {
-        match property_name {
-            ConfigPropertyName::IpAddress => self.data.ip_address = value.as_str().unwrap_or_default().to_string(),
-            ConfigPropertyName::LogLevel => self.data.log_level = value.as_str().unwrap_or_default().to_string(),
-            ConfigPropertyName::MockServerMode => self.data.mock_server_mode = value
-                .as_bool()
-                .unwrap_or_else(|| value
-                    .as_str()
-                    .map(|s|
-                        matches!(s.to_lowercase().as_str(), "1" | "y" | "yes" | "true" | "on" | "enable" | "enabled")
-                    ).unwrap_or(false)
-                ),
-            ConfigPropertyName::MockServerIpAddress => self.data.mock_server_ip_address = value.as_str().unwrap_or_default().to_string(),
-        };
-
-        self.save()?;
-
-        log::trace!("set_value: {:?}={:?}", property_name, value);
-
         Ok(())
     }
 
