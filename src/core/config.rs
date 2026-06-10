@@ -13,22 +13,28 @@ use crate::core::utils::{default_config_path, initialize_path};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppConfig {
-    pub ip_address: String,
+    pub ip_address: Option<String>,
     pub log_level: Option<String>,
+    pub mock_server_mode: Option<bool>,
+    pub mock_server_ip_address: Option<String>,
 }
 
 impl AppConfig {
-    pub fn new(ip_address: String, log_level: Option<String>) -> Self {
+    pub fn new(ip_address: Option<String>, log_level: Option<String>, mock_server_mode: Option<bool>, mock_server_ip_address: Option<String>) -> Self {
         Self {
             ip_address,
             log_level,
+            mock_server_mode,
+            mock_server_ip_address,
         }
     }
 
     pub fn default() -> Self {
         Self {
-            ip_address: String::new(),
-            log_level: Some("off".to_string()),
+            ip_address: Some(String::from("")),
+            log_level: Some(String::from("off")),
+            mock_server_mode: Some(false),
+            mock_server_ip_address: Some(String::from("127.0.0.1")),
         }
     }
 }
@@ -108,13 +114,51 @@ impl AppConfigManager {
         Ok(value)
     }
 
-    pub fn set_value(&mut self, key: &str, value: &String) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn set_value(&mut self, key: &str, value: &Value) -> Result<(), Box<dyn std::error::Error>> {
+        if key == "ip_address" {
+            self.data.ip_address = Some(value.as_str().unwrap_or_default().to_string());
+            log::trace!("set_value: {:?}={:?}", key, self.data.ip_address);
+        } else if key == "log_level" {
+            self.data.log_level = Some(value.as_str().unwrap_or_default().to_string());
+            log::trace!("set_value: {:?}={:?}", key, self.data.log_level);
+        } else if key == "mock_server_mode" {
+            if value.as_str().is_some() {
+                let mock_server_mode_str = value.as_str().unwrap_or_default().to_lowercase();
+                self.data.mock_server_mode = Some(
+                    mock_server_mode_str == "1"
+                    || mock_server_mode_str == "true"
+                    || mock_server_mode_str == "on"
+                    || mock_server_mode_str == "yes"
+                    || mock_server_mode_str == "y"
+                    || mock_server_mode_str == "enable"
+                    || mock_server_mode_str == "enabled"
+                );
+            } else if value.is_boolean() {
+                self.data.mock_server_mode = Some(value.as_bool().unwrap());
+            }
+            log::trace!("set_value: {:?}={:?}", key, self.data.mock_server_mode);
+        } else if key == "mock_server_ip_address" {
+            self.data.mock_server_ip_address = Some(value.as_str().unwrap_or_default().to_string());
+            log::trace!("set_value: {:?}={:?}", key, self.data.mock_server_ip_address);
+        } else {
+            log::warn!("unknown config key: {:?}", key);
+            return Ok(());
+        }
+
+        self.save()?;
+
+        Ok(())
+    }
+
+    pub fn set_value2(&mut self, key: &str, value: &serde_json::Value) -> Result<(), Box<dyn std::error::Error>> {
         let mut app_config_json = serde_json::to_value(&self.data)?;
 
-        if app_config_json[key].is_string() {
-            app_config_json[key] = serde_json::Value::String(value.clone());
-        } else if app_config_json[key].is_number() {
-            app_config_json[key] = serde_json::Value::Number(value.parse()?);
+        if value.is_string() {
+            app_config_json[key] = serde_json::Value::String(value.as_str().unwrap().to_string());
+        } else if value.is_number() {
+            app_config_json[key] = serde_json::Value::Number(value.as_i64().unwrap().into());
+        } else if value.is_boolean() {
+            app_config_json[key] = serde_json::Value::Bool(value.as_bool().unwrap());
         }
 
         self.data = serde_json::from_value(app_config_json)?;

@@ -13,6 +13,8 @@ use commands::device::{DevicePropertyNameGet, DevicePropertyNameSet};
 use commands::query::QueryMessageName;
 use commands::config::ConfigPropertyName;
 
+use crate::commands::mock_server;
+
 
 #[derive(Parser)]
 #[command(name = "asdc")]
@@ -23,9 +25,9 @@ struct Cli {
     #[arg(long, value_name = "FILE_PATH", global = true)]
     config_path: Option<PathBuf>,
 
-    /// Testing mode (do not connect over TCP, use mock data)
+    /// Mock server mode (connect to local running mock server for testing)
     #[arg(long, global = true)]
-    test: bool,
+    mock_server_mode: bool,
 
     /// Logging level filter
     #[arg(short = 'l', long, value_name = "LOG_LEVEL", global = true)]
@@ -63,15 +65,19 @@ enum Commands {
         #[arg(short, long, value_name = "OUTPUT_FILE_PATH")]
         output_path: Option<PathBuf>,
     },
-    /// Continuously poll protobuf messages from the hot tub and write the data to a sqlite database
-    Poll {
-
-    },
+    /// Continuously poll protobuf messages from the hot tub and write structured data to a sqlite database
+    Poll { },
     /// Store and retrieve this application's settings
     Config {
         #[command(subcommand)]
         command: ConfigCommands,
-    }
+    },
+    /// Run a local mock TCP server for staging (request/response emulation)
+    StartMockServer {
+        /// Bind address for the mock server
+        #[arg(long, value_name = "IP_ADDRESS", default_value = mock_server::DEFAULT_HOST)]
+        ip_address: String,
+    },
 }
 
 
@@ -131,6 +137,8 @@ fn fatal_error_and_exit(message: &str) -> ! {
 fn main () {
     let cli = Cli::parse();
 
+    // ---------------------------------------------
+
     let mut logging_initialized = false;
 
     // check cli args for log_level (takes precedence over config file / env vars)
@@ -166,23 +174,49 @@ fn main () {
         log::debug!("logging initialized: level={}", log::max_level());
     }
 
+    // ---------------------------------------------
+
     log::info!("initializing app");
 
-    let testing_mode = cli.test;
-    if testing_mode {
-        log::debug!("testing mode enabled");
+    let mock_server_mode = cli.mock_server_mode || config.data.mock_server_mode.unwrap_or(false);
+
+    let mock_server_ip_address = if mock_server_mode {
+        config.data.mock_server_ip_address.clone().unwrap_or_else(|| mock_server::DEFAULT_HOST.to_string())
+    } else {
+        mock_server::DEFAULT_HOST.to_string()
+    };
+
+    if mock_server_mode {
+        log::debug!(
+            "mock_server_mode={:}, mock_server_ip_address={:}, cli={:?}, config={:?}",
+            mock_server_mode,
+            mock_server_ip_address,
+            cli.mock_server_mode,
+            config.data.mock_server_mode.unwrap_or(false)
+        );
     }
 
-    // get ip address first from cli, then check config file
-    let ip_address = cli.ip_address.unwrap_or_else(|| {
-        config.data.ip_address.to_string()
-    });
+    // target localhost in mock server mode
+    let ip_address = if mock_server_mode {
+        mock_server_ip_address.clone()
+    } else {
+        cli.ip_address.unwrap_or_else(|| config.data.ip_address.clone().unwrap_or_else(|| "".to_string()))
+    };
+
+    log::debug!("ip_address={}", ip_address);
+
+    // ---------------------------------------------
 
     log::info!("running command: {:?}", cli.command);
 
     match &cli.command {
         Commands::Discover { update_config } => {
-            let mut devices = commands::discover::discover_devices();
+            let mut devices = if mock_server_mode {
+                log::info!("mock server mode discover: returning local mock device");
+                vec![mock_server_ip_address]
+            } else {
+                commands::discover::discover_devices()
+            };
 
             commands::discover::display_devices(&devices);
 
@@ -191,14 +225,14 @@ fn main () {
                     if log::log_enabled!(log::Level::Warn) {
                         log::warn!("--update-config flag is set but no devices were discovered; config file will not be updated");
                     } else {
-                         println!("--update-config flag is set but no devices were discovered; config file will not be updated");
+                        println!("--update-config flag is set but no devices were discovered; config file will not be updated");
                     }
                 } else {
                     let first_device_ip = devices.remove(0);
-                    log::info!("updating config with first discovered device's IP address: {:}", first_device_ip);
-                    println!("updating config with first discovered device's IP address: {:}", first_device_ip);
+                    log::info!("updating config with first discovered device's IP address: {}", first_device_ip);
+                    println!("updating config with first discovered device's IP address: {}", first_device_ip);
 
-                    config.set_value("ip_address", &first_device_ip)
+                    config.set_value("ip_address", &first_device_ip.clone().try_into().unwrap())
                         .unwrap_or_else(|e| {
                             fatal_error_and_exit(&format!("failed to set config: {:?}", e));
                         });
@@ -212,6 +246,7 @@ fn main () {
             if ip_address.is_empty() {
                 fatal_error_and_exit("no ip address specified; aborting");
             }
+
             match command {
                 DeviceCommands::Get { property_name } => {
                     let value = commands::device::get_device_property_value(&ip_address, *property_name)
@@ -235,11 +270,6 @@ fn main () {
             }
         },
         Commands::Query { message_name, output_path } => {
-            if testing_mode {
-                commands::query::test_display_message((*message_name).into(), output_path.as_deref());
-                return;
-            }
-
             if ip_address.is_empty() {
                 fatal_error_and_exit("no ip address specified; aborting");
             }
@@ -255,15 +285,7 @@ fn main () {
             if ip_address.is_empty() {
                 fatal_error_and_exit("no ip address specified; aborting");
             }
-            if testing_mode {
-                 commands::poll::test();
-                 return;
-            }
 
-            // if testing_mode {
-            //     commands::poll::db_populate_mock_data(&ip_address);
-            //     return;
-            // }
             commands::poll::poll_device(&ip_address)
                 .unwrap_or_else(|e| {
                     fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
@@ -281,7 +303,7 @@ fn main () {
                 },
                 ConfigCommands::Set { property_name, value } => {
                     let key = property_name.as_str();
-                    config.set_value(key, value)
+                    config.set_value(key, &value.clone().try_into().unwrap())
                         .unwrap_or_else(|e| {
                             fatal_error_and_exit(&format!("failed to set config: {:?}", e));
                         });
@@ -303,6 +325,19 @@ fn main () {
                     println!("config reset to default values");
                 }
             }
+        },
+        Commands::StartMockServer { ip_address } => {
+            let mut host = ip_address;
+            if &mock_server_ip_address != ip_address {
+                host = &mock_server_ip_address;
+            }
+
+            let bind_address = format!("{}:{}", host, mock_server::DEFAULT_PORT);
+
+            commands::mock_server::run(&bind_address)
+                .unwrap_or_else(|e| {
+                    fatal_error_and_exit(&format!("mock server failed: {:#?}", e));
+                });
         },
     }
 }

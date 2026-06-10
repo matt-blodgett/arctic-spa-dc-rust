@@ -7,7 +7,11 @@ pub enum ConfigPropertyName {
     /// Hot tub IP Address
     IpAddress,
     /// Log Level
-    LogLevel
+    LogLevel,
+    /// Use local running mock server
+    MockServerMode,
+    /// Mock server IP Address
+    MockServerIpAddress,
 }
 
 impl ConfigPropertyName {
@@ -15,6 +19,8 @@ impl ConfigPropertyName {
         match self {
             ConfigPropertyName::IpAddress => "ip_address",
             ConfigPropertyName::LogLevel => "log_level",
+            ConfigPropertyName::MockServerMode => "mock_server_mode",
+            ConfigPropertyName::MockServerIpAddress => "mock_server_ip_address",
         }
     }
 }
