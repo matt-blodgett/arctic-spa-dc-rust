@@ -2,6 +2,7 @@
 #![allow(unused_imports)]
 
 
+use std::net;
 // use std::f64::consts::E;
 use std::time::SystemTime;
 
@@ -18,8 +19,7 @@ use crate::core::db;
 use crate::core::net::{MessageType, ProtoMessage, NetworkClient};
 
 
-const MAX_POLLING_DURATION_MS: u128 = 30 * 1000;
-
+const MAX_POLLING_DURATION_MS: u128 = 15 * 1000;
 
 
 #[derive(Debug)]
@@ -124,34 +124,36 @@ pub fn poll_device(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
     let start_time = SystemTime::now();
 
     log::debug!("requesting messages for initial data sync");
-    network_client.request_message(MessageType::Clock)?;
-    thread::sleep(Duration::from_millis(500));
-    network_client.request_message(MessageType::Configuration)?;
-    thread::sleep(Duration::from_millis(500));
-    network_client.request_message(MessageType::Error)?;
-    thread::sleep(Duration::from_millis(500));
-    network_client.request_message(MessageType::Filter)?;
-    thread::sleep(Duration::from_millis(500));
-    network_client.request_message(MessageType::Information)?;
-    thread::sleep(Duration::from_millis(500));
+    // network_client.request_message(MessageType::Clock)?;
+    // thread::sleep(Duration::from_millis(500));
+    // network_client.request_message(MessageType::Configuration)?;
+    // thread::sleep(Duration::from_millis(500));
+    // network_client.request_message(MessageType::Error)?;
+    // thread::sleep(Duration::from_millis(500));
+    // network_client.request_message(MessageType::Filter)?;
+    // thread::sleep(Duration::from_millis(500));
+    // network_client.request_message(MessageType::Information)?;
+    // thread::sleep(Duration::from_millis(500));
     network_client.request_message(MessageType::Live)?;
     thread::sleep(Duration::from_millis(500));
     network_client.request_message(MessageType::OnzenLive)?;
     thread::sleep(Duration::from_millis(500));
-    network_client.request_message(MessageType::OnzenSettings)?;
-    thread::sleep(Duration::from_millis(500));
-    network_client.request_message(MessageType::Peak)?;
-    thread::sleep(Duration::from_millis(500));
-    network_client.request_message(MessageType::Peripheral)?;
-    thread::sleep(Duration::from_millis(500));
-    network_client.request_message(MessageType::Router)?;
-    thread::sleep(Duration::from_millis(500));
-    network_client.request_message(MessageType::Settings)?;
-    thread::sleep(Duration::from_millis(500));
+    // network_client.request_message(MessageType::OnzenSettings)?;
+    // thread::sleep(Duration::from_millis(500));
+    // network_client.request_message(MessageType::Peak)?;
+    // thread::sleep(Duration::from_millis(500));
+    // network_client.request_message(MessageType::Peripheral)?;
+    // thread::sleep(Duration::from_millis(500));
+    // network_client.request_message(MessageType::Router)?;
+    // thread::sleep(Duration::from_millis(500));
+    // network_client.request_message(MessageType::Settings)?;
+    // thread::sleep(Duration::from_millis(500));
 
+    // network_client.request_message(MessageType::Live)?;
 
     log::debug!("starting polling loop");
 
+    let mut iteration = 0;
 
     while running.load(Ordering::SeqCst) {
 
@@ -174,8 +176,8 @@ pub fn poll_device(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
             },
             Err(e) => {
                 log::error!("network io error: {}", e);
-                log::debug!("sleeping for 5000ms before retrying...");
-                thread::sleep(Duration::from_millis(5_000));
+                log::debug!("sleeping for 2000ms before retrying...");
+                thread::sleep(Duration::from_millis(2_000));
             }
         }
 
@@ -188,6 +190,23 @@ pub fn poll_device(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
             log::info!("reached max polling duration of {} milliseconds, exiting polling loop", MAX_POLLING_DURATION_MS);
             break;
         }
+
+        iteration += 1;
+        if iteration == 5 {
+            log::debug!("iteration {}: sending message request to device to ensure connection is alive", iteration);
+            if let Err(e) = network_client.request_message(MessageType::Live) {
+                log::error!("network io error during message request: {}", e);
+            }
+
+            let mut command = proto::Command::Command::new();
+            command.set_set_lights(true);
+            network_client.send_command(command)?;
+
+            let mut command2 = proto::Command::Command::new();
+            command2.set_set_temperature_setpoint_fahrenheit(104);
+            network_client.send_command(command2)?;
+        }
+
     }
 
     log::info!("received Ctrl+C, exiting polling loop gracefully");
