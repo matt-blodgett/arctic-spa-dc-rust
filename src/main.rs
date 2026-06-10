@@ -166,10 +166,11 @@ fn main () {
 
     // if cli arg for log_level is not present, logging is not initialized - check config file or use default value
     if !logging_initialized {
-        let log_level = config.data.log_level
-            .as_deref()
-            .map(core::logging::LogLevel::from)
-            .unwrap_or(core::logging::DEFAULT_LOGGING_LEVEL);
+        let log_level = if config.data.log_level.is_empty() {
+            core::logging::DEFAULT_LOGGING_LEVEL
+        } else {
+            core::logging::LogLevel::from(config.data.log_level.as_str())
+        };
         core::logging::init_logging(log_level);
         log::debug!("logging initialized: level={}", log::max_level());
     }
@@ -178,21 +179,19 @@ fn main () {
 
     log::info!("initializing app");
 
-    let mock_server_mode = cli.mock_server_mode || config.data.mock_server_mode.unwrap_or(false);
-
+    let mock_server_mode = cli.mock_server_mode || config.data.mock_server_mode;
     let mock_server_ip_address = if mock_server_mode {
-        config.data.mock_server_ip_address.clone().unwrap_or_else(|| mock_server::DEFAULT_HOST.to_string())
+        config.data.mock_server_ip_address.clone()
     } else {
         mock_server::DEFAULT_HOST.to_string()
     };
-
     if mock_server_mode {
         log::debug!(
             "mock_server_mode={:}, mock_server_ip_address={:}, cli={:?}, config={:?}",
             mock_server_mode,
             mock_server_ip_address,
             cli.mock_server_mode,
-            config.data.mock_server_mode.unwrap_or(false)
+            config.data.mock_server_mode
         );
     }
 
@@ -200,10 +199,10 @@ fn main () {
     let ip_address = if mock_server_mode {
         mock_server_ip_address.clone()
     } else {
-        cli.ip_address.unwrap_or_else(|| config.data.ip_address.clone().unwrap_or_else(|| "".to_string()))
+        cli.ip_address.unwrap_or_else(|| config.data.ip_address.clone())
     };
 
-    log::debug!("ip_address={}", ip_address);
+    log::debug!("using ip_address={}", ip_address);
 
     // ---------------------------------------------
 
@@ -232,7 +231,7 @@ fn main () {
                     log::info!("updating config with first discovered device's IP address: {}", first_device_ip);
                     println!("updating config with first discovered device's IP address: {}", first_device_ip);
 
-                    config.set_value("ip_address", &first_device_ip.clone().try_into().unwrap())
+                    config.set_value(ConfigPropertyName::IpAddress, &first_device_ip.clone().into())
                         .unwrap_or_else(|e| {
                             fatal_error_and_exit(&format!("failed to set config: {:?}", e));
                         });
@@ -294,20 +293,18 @@ fn main () {
         Commands::Config { command } => {
             match command {
                 ConfigCommands::Get { property_name } => {
-                    let key = property_name.as_str();
-                    let value = config.get_value(key)
-                        .unwrap_or_else(|e| {
-                            fatal_error_and_exit(&format!("failed to get config: {:?}", e));
-                        });
-                    println!("config value: {:?} = {:?}", key, value);
+                    let value = match config.get_value(*property_name) {
+                        core::config::ConfigValue::Str(s) => s,
+                        core::config::ConfigValue::Bool(b) => b.to_string(),
+                    };
+                    println!("got config value -> {:?} = {:?}", property_name, value);
                 },
                 ConfigCommands::Set { property_name, value } => {
-                    let key = property_name.as_str();
-                    config.set_value(key, &value.clone().try_into().unwrap())
+                    config.set_value(*property_name, &value.clone().into())
                         .unwrap_or_else(|e| {
                             fatal_error_and_exit(&format!("failed to set config: {:?}", e));
                         });
-                    println!("config value set: {:?} = {:?}", key, value);
+                    println!("set config value -> {:?} = {:?}", property_name, value);
                 },
                 ConfigCommands::List {  } => {
                     let config_json_string = config.to_string_pretty()
