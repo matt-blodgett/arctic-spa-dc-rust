@@ -452,7 +452,7 @@ fn get_message_value(network_client: &mut NetworkClient, property_name: DevicePr
 
 pub fn get_device_property_value(ip_address: &str, property_name: DevicePropertyNameGet) -> Result<String, Box<dyn std::error::Error>> {
     log::debug!("read device property value {:?}", property_name.as_name());
-    let mut network_client = NetworkClient::connect_to(ip_address)?;
+    let mut network_client = NetworkClient::connect(ip_address)?;
     let value = get_message_value(&mut network_client, property_name)?;
     log::info!("successfully read device property value {:?}={:?}", property_name.as_name(), value);
     Ok(value)
@@ -463,7 +463,7 @@ pub fn display_device_property_value(property_name: DevicePropertyNameGet, value
 pub fn get_and_display_all_device_properties(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
     println!("displaying all device properties");
 
-    let mut network_client = NetworkClient::connect_to(ip_address)?;
+    let mut network_client = NetworkClient::connect(ip_address)?;
 
     let message_live = network_client.request_message_and_await_response(MessageType::Live)?;
     let message_onzen_live = network_client.request_message_and_await_response(MessageType::OnzenLive)?;
@@ -527,7 +527,7 @@ fn send_and_log(
 pub fn set_device_property_value(ip_address: &str, property_name: DevicePropertyNameSet, value: &String) -> Result<(), Box<dyn std::error::Error>> {
     log::debug!("write device property value {:?}={:?}", property_name.as_name(), value);
 
-    let mut network_client = NetworkClient::connect_to(ip_address)?;
+    let mut network_client = NetworkClient::connect(ip_address)?;
     let mut command_message = proto::Command::Command::new();
 
     match property_name {

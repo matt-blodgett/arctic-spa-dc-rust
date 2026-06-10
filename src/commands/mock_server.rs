@@ -558,7 +558,7 @@ fn handle_client(mut stream: TcpStream, state: Arc<Mutex<MockState>>) -> Result<
                     .lock()
                     .map_err(|_| Error::other("failed to lock mock state"))?;
 
-                // dequeue all responses first
+                // dequeue all queued responses first
                 let mut responses = Vec::new();
                 while let Some((queued_type, queued_payload)) = guard.dequeue_response() {
                     responses.push((queued_type, queued_payload));

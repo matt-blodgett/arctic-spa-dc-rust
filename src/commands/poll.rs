@@ -115,7 +115,7 @@ pub fn poll_device(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
     log::info!("press Ctrl+C to stop polling and exit gracefully");
 
     log::debug!("connecting to device at {:}", ip_address);
-    let mut network_client = NetworkClient::connect_to(ip_address)?;
+    let mut network_client = NetworkClient::connect(ip_address)?;
 
     log::debug!("initializing database");
     let mut db_client = db::DatabaseClient::open(None, false)?;
@@ -124,36 +124,22 @@ pub fn poll_device(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
     let start_time = SystemTime::now();
 
     log::debug!("requesting messages for initial data sync");
-    // network_client.request_message(MessageType::Clock)?;
-    // thread::sleep(Duration::from_millis(500));
-    // network_client.request_message(MessageType::Configuration)?;
-    // thread::sleep(Duration::from_millis(500));
-    // network_client.request_message(MessageType::Error)?;
-    // thread::sleep(Duration::from_millis(500));
-    // network_client.request_message(MessageType::Filter)?;
-    // thread::sleep(Duration::from_millis(500));
-    // network_client.request_message(MessageType::Information)?;
-    // thread::sleep(Duration::from_millis(500));
+    network_client.request_message(MessageType::Clock)?;
+    network_client.request_message(MessageType::Configuration)?;
+    network_client.request_message(MessageType::Error)?;
+    network_client.request_message(MessageType::Filter)?;
+    network_client.request_message(MessageType::Information)?;
     network_client.request_message(MessageType::Live)?;
-    thread::sleep(Duration::from_millis(500));
     network_client.request_message(MessageType::OnzenLive)?;
-    thread::sleep(Duration::from_millis(500));
-    // network_client.request_message(MessageType::OnzenSettings)?;
-    // thread::sleep(Duration::from_millis(500));
-    // network_client.request_message(MessageType::Peak)?;
-    // thread::sleep(Duration::from_millis(500));
-    // network_client.request_message(MessageType::Peripheral)?;
-    // thread::sleep(Duration::from_millis(500));
-    // network_client.request_message(MessageType::Router)?;
-    // thread::sleep(Duration::from_millis(500));
-    // network_client.request_message(MessageType::Settings)?;
-    // thread::sleep(Duration::from_millis(500));
-
-    // network_client.request_message(MessageType::Live)?;
+    network_client.request_message(MessageType::OnzenSettings)?;
+    network_client.request_message(MessageType::Peak)?;
+    network_client.request_message(MessageType::Peripheral)?;
+    network_client.request_message(MessageType::Router)?;
+    network_client.request_message(MessageType::Settings)?;
 
     log::debug!("starting polling loop");
 
-    let mut iteration = 0;
+    // let mut iteration = 0;
 
     while running.load(Ordering::SeqCst) {
 
@@ -191,21 +177,21 @@ pub fn poll_device(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
             break;
         }
 
-        iteration += 1;
-        if iteration == 5 {
-            log::debug!("iteration {}: sending message request to device to ensure connection is alive", iteration);
-            if let Err(e) = network_client.request_message(MessageType::Live) {
-                log::error!("network io error during message request: {}", e);
-            }
+        // iteration += 1;
+        // if iteration == 5 {
+        //     log::debug!("iteration {}: sending message request to device to ensure connection is alive", iteration);
+        //     if let Err(e) = network_client.request_message(MessageType::Live) {
+        //         log::error!("network io error during message request: {}", e);
+        //     }
 
-            let mut command = proto::Command::Command::new();
-            command.set_set_lights(true);
-            network_client.send_command(command)?;
+        //     let mut command = proto::Command::Command::new();
+        //     command.set_set_lights(true);
+        //     network_client.send_command(command)?;
 
-            let mut command2 = proto::Command::Command::new();
-            command2.set_set_temperature_setpoint_fahrenheit(104);
-            network_client.send_command(command2)?;
-        }
+        //     let mut command2 = proto::Command::Command::new();
+        //     command2.set_set_temperature_setpoint_fahrenheit(104);
+        //     network_client.send_command(command2)?;
+        // }
 
     }
 

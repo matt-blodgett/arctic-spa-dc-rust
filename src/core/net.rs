@@ -373,7 +373,7 @@ impl TryFrom<&Packet> for ProtoMessage {
 
 pub struct NetworkClient {
     host: String,
-    port: String,
+    port: &'static str,
     tcp_stream: Option<TcpStream>
 }
 
@@ -381,28 +381,34 @@ impl NetworkClient {
     pub fn new() -> Self {
         Self {
             host: "".to_string(),
-            port: "65534".to_string(),
+            port: "65534",
             tcp_stream: None
         }
     }
 
-    pub fn connect_to(ip_address: &str) -> Result<Self, Error> {
+    pub fn connect(ip_address: &str) -> Result<Self, Error> {
         let mut client = Self::new();
-        client.connect(ip_address)?;
+        client.set_connection(ip_address)?;
         Ok(client)
     }
 
-    pub fn connect(&mut self, host: &str) -> Result<(), Error> {
+    pub fn set_connection(&mut self, host: &str) -> Result<(), Error> {
         self.host = host.to_string();
-        let addr = format!("{}:{}", self.host, self.port);
+
         log::info!("creating tcp connection: host={:?}, port={:?}", self.host, self.port);
-        let stream = TcpStream::connect(addr)?;
+
+        let addr = format!("{}:{}", self.host, self.port);
+        let stream = TcpStream::connect(&addr)?;
+
         log::debug!("setting stream to blocking mode");
         stream.set_nonblocking(false)?;
+
         self.tcp_stream = Some(stream);
         let default_timeout_ms = 3_000;
         self.set_timeout_ms(default_timeout_ms)?;
-        log::info!("successfully connected to {:?}", host);
+
+        log::info!("successfully connected to {:?}", &addr);
+
         Ok(())
     }
 

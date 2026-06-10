@@ -119,6 +119,19 @@ Request protobuf messages from the device. Returns information about device stat
 asdc query onzen-live --ip-address "192.168.0.1" --log-level trace
 ```
 
+### Poll
+
+Poll hot tub data in a timed, continuous loop.
+1. Connect to the hot tub
+2. Connect to or create a SQLite database file
+3. Request message types with custom refresh intervals and filters
+
+**Examples:**
+```bash
+# #TODO: add command line args
+asdc poll
+```
+
 ### Config
 
 Manage application settings stored locally to avoid repeating flags.
@@ -128,7 +141,6 @@ Manage application settings stored locally to avoid repeating flags.
 - `log-level` — Logging output level
 
 **Examples:**
-
 ```bash
 # get the stored ip address
 asdc config get ip-address
@@ -144,6 +156,27 @@ asdc config list
 
 # reset config file with default values
 asdc config reset
+```
+
+### StartMockServer
+
+Run a mock TCP server that simulates sending and receiving the same requests and responses that an actual hot tub would.
+This is great for prototyping or sandboxing without worrying about damage to your actual hot tub.
+
+**Examples:**
+```bash
+# start the tcp server on localhost
+asdc start-mock-server --ip-address "127.0.0.1"
+
+# in a new terminal, connect to the mock server
+asdc query live --mock-server-mode --mock-server-ip-address "127.0.0.1"
+
+# set configs for easier testing
+asdc config set mock-server-mode 1
+asdc config set mock-server-ip-address "127.0.0.2"
+
+# this will now try to connect to the locally running mock server @ "127.0.0.2"
+asdc query live
 ```
 
 ## Example Workflow
