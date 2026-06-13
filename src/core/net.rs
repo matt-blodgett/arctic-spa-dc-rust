@@ -547,9 +547,9 @@ impl NetworkClient {
         Ok(())
     }
 
-    pub fn request_message(&mut self, message_type: MessageType) -> Result<(), Error> {
+    pub fn request_message(&mut self, message_type: &MessageType) -> Result<(), Error> {
         log::debug!("requesting message {:?}", message_type);
-        self.write_packet(message_type.into(), vec![])?;
+        self.write_packet((*message_type).into(), vec![])?;
         Ok(())
     }
 
@@ -640,7 +640,7 @@ impl NetworkClient {
         Ok(messages)
     }
 
-    pub fn request_message_and_await_response(&mut self, message_type: MessageType) -> Result<ProtoMessage, Error> {
+    pub fn request_message_and_await_response(&mut self, message_type: &MessageType) -> Result<ProtoMessage, Error> {
         self.request_message(message_type)?;
 
         let max_attempts = 3;
@@ -649,7 +649,7 @@ impl NetworkClient {
             let packets = self.read_packets()?;
             for packet in packets {
                 // if packet.message_type_value == message_type.into() {
-                if packet.message_type_value == <MessageType as Into<u16>>::into(message_type) {
+                if packet.message_type_value == <MessageType as Into<u16>>::into(*message_type) {
                     let message = ProtoMessage::try_from(&packet)?;
                     return Ok(message);
                 }

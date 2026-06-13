@@ -56,7 +56,7 @@ impl From<QueryMessageName> for MessageType {
     }
 }
 
-pub fn get_message(ip_address: &str, message_type: MessageType) -> Result<ProtoMessage, Error> {
+pub fn get_message(ip_address: &str, message_type: &MessageType) -> Result<ProtoMessage, Error> {
     log::info!(
         "getting message: host={:?}, message_type={:?}",
         ip_address,

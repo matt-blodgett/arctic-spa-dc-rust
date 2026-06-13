@@ -232,14 +232,14 @@ impl DevicePropertyNameSet {
     }
 }
 
-fn pump_status_to_string(value: proto::Live::live::PumpStatus) -> String {
+fn pump_status_to_string(value: &proto::Live::live::PumpStatus) -> String {
     match value {
         proto::Live::live::PumpStatus::PUMP_OFF => "OFF".to_string(),
         proto::Live::live::PumpStatus::PUMP_LOW => "LOW".to_string(),
         proto::Live::live::PumpStatus::PUMP_HIGH => "HIGH".to_string(),
     }
 }
-fn heater_status_to_string(value: proto::Live::live::HeaterStatus) -> String {
+fn heater_status_to_string(value: &proto::Live::live::HeaterStatus) -> String {
     match value {
         proto::Live::live::HeaterStatus::HEATER_IDLE => "IDLE".to_string(),
         proto::Live::live::HeaterStatus::HEATER_WARMUP => "WARMUP".to_string(),
@@ -247,7 +247,7 @@ fn heater_status_to_string(value: proto::Live::live::HeaterStatus) -> String {
         proto::Live::live::HeaterStatus::HEATER_COOLDOWN => "COOLDOWN".to_string(),
     }
 }
-fn filter_status_to_string(value: proto::Live::live::FilterStatus) -> String {
+fn filter_status_to_string(value: &proto::Live::live::FilterStatus) -> String {
     match value {
         proto::Live::live::FilterStatus::FILTER_IDLE => "IDLE".to_string(),
         proto::Live::live::FilterStatus::FILTER_FILTERING => "FILTERING".to_string(),
@@ -259,14 +259,14 @@ fn filter_status_to_string(value: proto::Live::live::FilterStatus) -> String {
         proto::Live::live::FilterStatus::FILTER_OVER_TEMPERATURE => "OVER_TEMPERATURE".to_string(),
     }
 }
-fn ozone_status_to_string(value: proto::Live::live::OzoneStatus) -> String {
+fn ozone_status_to_string(value: &proto::Live::live::OzoneStatus) -> String {
     match value {
         proto::Live::live::OzoneStatus::OZONE_IDLE => "IDLE".to_string(),
         proto::Live::live::OzoneStatus::OZONE_ACTIVE => "ACTIVE".to_string(),
         proto::Live::live::OzoneStatus::OZONE_SUSPENDED => "SUSPENDED".to_string(),
     }
 }
-fn sauna_status_to_string(value: proto::Live::live::SaunaStatus) -> String {
+fn sauna_status_to_string(value: &proto::Live::live::SaunaStatus) -> String {
     match value {
         proto::Live::live::SaunaStatus::SAUNA_NORMAL => "NORMAL".to_string(),
         proto::Live::live::SaunaStatus::SAUNA_PRESET_A => "PRESET_A".to_string(),
@@ -274,7 +274,7 @@ fn sauna_status_to_string(value: proto::Live::live::SaunaStatus) -> String {
         proto::Live::live::SaunaStatus::SAUNA_PRESET_C => "PRESET_C".to_string(),
     }
 }
-fn sauna_state_to_string(value: proto::Command::command::SetSaunaState) -> String {
+fn sauna_state_to_string(value: &proto::Command::command::SetSaunaState) -> String {
     match value {
         proto::Command::command::SetSaunaState::SAUNA_IDLE => "IDLE".to_string(),
         proto::Command::command::SetSaunaState::SAUNA_PRESET_A => "PRESET_A".to_string(),
@@ -283,7 +283,7 @@ fn sauna_state_to_string(value: proto::Command::command::SetSaunaState) -> Strin
         proto::Command::command::SetSaunaState::SAUNA_TIMER => "TIMER".to_string(),
     }
 }
-fn color_status_to_string(value: proto::OnzenLive::onzen_live::Color) -> String {
+fn color_status_to_string(value: &proto::OnzenLive::onzen_live::Color) -> String {
     match value {
         proto::OnzenLive::onzen_live::Color::COLOR_LOW => "LOW".to_string(),
         proto::OnzenLive::onzen_live::Color::COLOR_CAUTION_LOW => "CAUTION_LOW".to_string(),
@@ -292,11 +292,11 @@ fn color_status_to_string(value: proto::OnzenLive::onzen_live::Color) -> String 
         proto::OnzenLive::onzen_live::Color::COLOR_HIGH => "HIGH".to_string(),
     }
 }
-fn bool_to_string(value: bool) -> String {
-    let value_parsed = if value { "ON" } else { "OFF" };
+fn bool_to_string(value: &bool) -> String {
+    let value_parsed = if *value { "ON" } else { "OFF" };
     value_parsed.to_string()
 }
-fn i32_to_string(value: i32) -> String {
+fn i32_to_string(value: &i32) -> String {
     value.to_string()
 }
 
@@ -308,7 +308,11 @@ fn string_to_set_pump_status(
         "OFF" => Ok(proto::Command::command::SetPumpStatus::PUMP_OFF),
         "LOW" => Ok(proto::Command::command::SetPumpStatus::PUMP_LOW),
         "HIGH" => Ok(proto::Command::command::SetPumpStatus::PUMP_HIGH),
-        _ => Err(format!("invalid set pump status value: {}", value).into()),
+        _ => Err(format!(
+            "invalid set pump status value: {:} -> possible values are: [off, low, high]",
+            value
+        )
+        .into()),
     }
 }
 fn string_to_set_sauna_state(
@@ -321,7 +325,11 @@ fn string_to_set_sauna_state(
         "PRESET_B" => Ok(proto::Command::command::SetSaunaState::SAUNA_PRESET_B),
         "PRESET_C" => Ok(proto::Command::command::SetSaunaState::SAUNA_PRESET_C),
         "TIMER" => Ok(proto::Command::command::SetSaunaState::SAUNA_TIMER),
-        _ => Err(format!("invalid set sauna state value: {}", value).into()),
+        _ => Err(format!(
+            "invalid set sauna state value: {:} -> possible values are: [idle, preset_a, preset_b, preset_c, timer]",
+            value
+        )
+        .into()),
     }
 }
 fn string_to_bool(value: &String) -> Result<bool, Box<dyn std::error::Error>> {
@@ -329,7 +337,7 @@ fn string_to_bool(value: &String) -> Result<bool, Box<dyn std::error::Error>> {
     match value_parsed.as_str() {
         "ON" => Ok(true),
         "OFF" => Ok(false),
-        _ => Err(format!("invalid boolean value: {}", value).into()),
+        _ => Err(format!("invalid boolean value: {:} -> possible values are: [on, off]", value).into()),
     }
 }
 fn string_to_i32(value: &String, min: i32, max: i32) -> Result<i32, Box<dyn std::error::Error>> {
@@ -343,7 +351,7 @@ fn string_to_i32(value: &String, min: i32, max: i32) -> Result<i32, Box<dyn std:
     Ok(value_parsed)
 }
 
-fn device_property_name_to_message_type(property_name: DevicePropertyNameGet) -> MessageType {
+fn device_property_name_to_message_type(property_name: &DevicePropertyNameGet) -> MessageType {
     match property_name {
         DevicePropertyNameGet::TemperatureCurrent
         | DevicePropertyNameGet::TempCurrent
@@ -379,156 +387,88 @@ fn device_property_name_to_message_type(property_name: DevicePropertyNameGet) ->
     }
 }
 fn get_message_value_from_property(
-    message_type: MessageType,
+    message_type: &MessageType,
     message: &ProtoMessage,
-    property_name: DevicePropertyNameGet,
+    property_name: &DevicePropertyNameGet,
 ) -> Result<String, Box<dyn std::error::Error>> {
-    if message_type == MessageType::Live {
-        let message_live = message.as_live().ok_or("Failed to convert message to Live")?;
-        match property_name {
-            DevicePropertyNameGet::TemperatureCurrent
-            | DevicePropertyNameGet::TempCurrent
-            | DevicePropertyNameGet::Temp => {
-                return Ok(i32_to_string(message_live.temperature_fahrenheit()));
-            }
-            DevicePropertyNameGet::TemperatureSetpoint
-            | DevicePropertyNameGet::TempSetpoint
-            | DevicePropertyNameGet::TempSp => {
-                return Ok(i32_to_string(message_live.temperature_setpoint_fahrenheit()));
-            }
-            DevicePropertyNameGet::Pump1 => {
-                return Ok(pump_status_to_string(message_live.pump_1()));
-            }
-            DevicePropertyNameGet::Pump2 => {
-                return Ok(pump_status_to_string(message_live.pump_2()));
-            }
-            DevicePropertyNameGet::Pump3 => {
-                return Ok(pump_status_to_string(message_live.pump_3()));
-            }
-            DevicePropertyNameGet::Pump4 => {
-                return Ok(pump_status_to_string(message_live.pump_4()));
-            }
-            DevicePropertyNameGet::Pump5 => {
-                return Ok(pump_status_to_string(message_live.pump_5()));
-            }
-            DevicePropertyNameGet::Blower1 => {
-                return Ok(pump_status_to_string(message_live.blower_1()));
-            }
-            DevicePropertyNameGet::Blower2 => {
-                return Ok(pump_status_to_string(message_live.blower_2()));
-            }
-            DevicePropertyNameGet::Lights => {
-                return Ok(bool_to_string(message_live.lights()));
-            }
-            DevicePropertyNameGet::Stereo => {
-                return Ok(bool_to_string(message_live.stereo()));
-            }
-            DevicePropertyNameGet::Heater1 => {
-                return Ok(heater_status_to_string(message_live.heater_1()));
-            }
-            DevicePropertyNameGet::Heater2 => {
-                return Ok(heater_status_to_string(message_live.heater_2()));
-            }
-            DevicePropertyNameGet::Filter => {
-                return Ok(filter_status_to_string(message_live.filter()));
-            }
-            DevicePropertyNameGet::Onzen => {
-                return Ok(bool_to_string(message_live.onzen()));
-            }
-            DevicePropertyNameGet::Ozone => {
-                return Ok(ozone_status_to_string(message_live.ozone()));
-            }
-            DevicePropertyNameGet::ExhaustFan => {
-                return Ok(bool_to_string(message_live.exhaust_fan()));
-            }
-            DevicePropertyNameGet::SaunaState => {
-                return Ok(sauna_status_to_string(message_live.sauna()));
-            }
-            DevicePropertyNameGet::SaunaTimeLeft => {
-                return Ok(i32_to_string(message_live.sauna_time_remaining()));
-            }
-            DevicePropertyNameGet::AllOn => {
-                return Ok(bool_to_string(message_live.all_on()));
-            }
-            DevicePropertyNameGet::Fogger => {
-                return Ok(bool_to_string(message_live.fogger()));
-            }
-            DevicePropertyNameGet::Sds => {
-                return Ok(bool_to_string(message_live.sds()));
-            }
-            DevicePropertyNameGet::Yess => {
-                return Ok(bool_to_string(message_live.yess()));
-            }
-            _ => {
-                log::error!(
-                    "unsupported property for Live message type: {:?}",
-                    property_name.as_name()
-                );
-                return Err(format!(
+    match message_type {
+        MessageType::Live => {
+            let message_live = message.as_live().ok_or("Failed to convert message to Live")?;
+            match property_name {
+                DevicePropertyNameGet::TemperatureCurrent
+                | DevicePropertyNameGet::TempCurrent
+                | DevicePropertyNameGet::Temp => Ok(i32_to_string(&message_live.temperature_fahrenheit())),
+                DevicePropertyNameGet::TemperatureSetpoint
+                | DevicePropertyNameGet::TempSetpoint
+                | DevicePropertyNameGet::TempSp => Ok(i32_to_string(&message_live.temperature_setpoint_fahrenheit())),
+                DevicePropertyNameGet::Pump1 => Ok(pump_status_to_string(&message_live.pump_1())),
+                DevicePropertyNameGet::Pump2 => Ok(pump_status_to_string(&message_live.pump_2())),
+                DevicePropertyNameGet::Pump3 => Ok(pump_status_to_string(&message_live.pump_3())),
+                DevicePropertyNameGet::Pump4 => Ok(pump_status_to_string(&message_live.pump_4())),
+                DevicePropertyNameGet::Pump5 => Ok(pump_status_to_string(&message_live.pump_5())),
+                DevicePropertyNameGet::Blower1 => Ok(pump_status_to_string(&message_live.blower_1())),
+                DevicePropertyNameGet::Blower2 => Ok(pump_status_to_string(&message_live.blower_2())),
+                DevicePropertyNameGet::Lights => Ok(bool_to_string(&message_live.lights())),
+                DevicePropertyNameGet::Stereo => Ok(bool_to_string(&message_live.stereo())),
+                DevicePropertyNameGet::Heater1 => Ok(heater_status_to_string(&message_live.heater_1())),
+                DevicePropertyNameGet::Heater2 => Ok(heater_status_to_string(&message_live.heater_2())),
+                DevicePropertyNameGet::Filter => Ok(filter_status_to_string(&message_live.filter())),
+                DevicePropertyNameGet::Onzen => Ok(bool_to_string(&message_live.onzen())),
+                DevicePropertyNameGet::Ozone => Ok(ozone_status_to_string(&message_live.ozone())),
+                DevicePropertyNameGet::ExhaustFan => Ok(bool_to_string(&message_live.exhaust_fan())),
+                DevicePropertyNameGet::SaunaState => Ok(sauna_status_to_string(&message_live.sauna())),
+                DevicePropertyNameGet::SaunaTimeLeft => Ok(i32_to_string(&message_live.sauna_time_remaining())),
+                DevicePropertyNameGet::AllOn => Ok(bool_to_string(&message_live.all_on())),
+                DevicePropertyNameGet::Fogger => Ok(bool_to_string(&message_live.fogger())),
+                DevicePropertyNameGet::Sds => Ok(bool_to_string(&message_live.sds())),
+                DevicePropertyNameGet::Yess => Ok(bool_to_string(&message_live.yess())),
+                _ => Err(format!(
                     "unsupported property for Live message type: {:?}",
                     property_name.as_name()
                 )
-                .into());
+                .into()),
             }
         }
-    } else if message_type == MessageType::OnzenLive {
-        let message_onzen_live = message
-            .as_onzen_live()
-            .ok_or("Failed to convert message to OnzenLive")?;
-        match property_name {
-            DevicePropertyNameGet::Orp => {
-                return Ok(i32_to_string(message_onzen_live.orp()));
-            }
-            DevicePropertyNameGet::Ph100 => {
-                return Ok(i32_to_string(message_onzen_live.ph_100()));
-            }
-            DevicePropertyNameGet::OrpColor => {
-                return Ok(color_status_to_string(message_onzen_live.orp_color()));
-            }
-            DevicePropertyNameGet::PhColor => {
-                return Ok(color_status_to_string(message_onzen_live.ph_color()));
-            }
-            _ => {
-                log::error!(
-                    "unsupported property for OnzenLive message type: {:?}",
-                    property_name.as_name()
-                );
-                return Err(format!(
+        MessageType::OnzenLive => {
+            let message_onzen_live = message
+                .as_onzen_live()
+                .ok_or("Failed to convert message to OnzenLive")?;
+            match property_name {
+                DevicePropertyNameGet::Orp => Ok(i32_to_string(&message_onzen_live.orp())),
+                DevicePropertyNameGet::Ph100 => Ok(i32_to_string(&message_onzen_live.ph_100())),
+                DevicePropertyNameGet::OrpColor => Ok(color_status_to_string(&message_onzen_live.orp_color())),
+                DevicePropertyNameGet::PhColor => Ok(color_status_to_string(&message_onzen_live.ph_color())),
+                _ => Err(format!(
                     "unsupported property for OnzenLive message type: {:?}",
                     property_name.as_name()
                 )
-                .into());
+                .into()),
             }
         }
+        _ => Err(format!("unsupported message type: {:?}", message_type).into()),
     }
-
-    Err(format!("unsupported message type: {:?}", message_type).into())
 }
 fn get_message_value(
     network_client: &mut NetworkClient,
-    property_name: DevicePropertyNameGet,
+    property_name: &DevicePropertyNameGet,
 ) -> Result<String, Box<dyn std::error::Error>> {
     let message_type = device_property_name_to_message_type(property_name);
-    let message = network_client.request_message_and_await_response(message_type)?;
-    let value = get_message_value_from_property(message_type, &message, property_name)?;
+    let message = network_client.request_message_and_await_response(&message_type)?;
+    let value = get_message_value_from_property(&message_type, &message, property_name)?;
     Ok(value)
 }
 
 pub fn get_device_property_value(
     ip_address: &str,
-    property_name: DevicePropertyNameGet,
+    property_name: &DevicePropertyNameGet,
 ) -> Result<String, Box<dyn std::error::Error>> {
     log::debug!("read device property value {:?}", property_name.as_name());
     let mut network_client = NetworkClient::connect(ip_address)?;
     let value = get_message_value(&mut network_client, property_name)?;
-    log::info!(
-        "successfully read device property value {:?}={:?}",
-        property_name.as_name(),
-        value
-    );
+    log::info!("read device property value {:?}={:?}", property_name.as_name(), value);
     Ok(value)
 }
-pub fn display_device_property_value(property_name: DevicePropertyNameGet, value: &String) -> () {
+pub fn display_device_property_value(property_name: &DevicePropertyNameGet, value: &String) -> () {
     println!("device value: {:?}={:?}", property_name.as_name(), value);
 }
 pub fn get_and_display_all_device_properties(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
@@ -536,8 +476,8 @@ pub fn get_and_display_all_device_properties(ip_address: &str) -> Result<(), Box
 
     let mut network_client = NetworkClient::connect(ip_address)?;
 
-    let message_live = network_client.request_message_and_await_response(MessageType::Live)?;
-    let message_onzen_live = network_client.request_message_and_await_response(MessageType::OnzenLive)?;
+    let message_live = network_client.request_message_and_await_response(&MessageType::Live)?;
+    let message_onzen_live = network_client.request_message_and_await_response(&MessageType::OnzenLive)?;
 
     let all_properties_live = [
         DevicePropertyNameGet::TemperatureCurrent,
@@ -572,13 +512,13 @@ pub fn get_and_display_all_device_properties(ip_address: &str) -> Result<(), Box
     ];
 
     for property in all_properties_live.iter() {
-        let value = get_message_value_from_property(MessageType::Live, &message_live, *property)?;
-        display_device_property_value(*property, &value);
+        let value = get_message_value_from_property(&MessageType::Live, &message_live, property)?;
+        display_device_property_value(property, &value);
     }
 
     for property in all_properties_onzen_live.iter() {
-        let value = get_message_value_from_property(MessageType::OnzenLive, &message_onzen_live, *property)?;
-        display_device_property_value(*property, &value);
+        let value = get_message_value_from_property(&MessageType::OnzenLive, &message_onzen_live, property)?;
+        display_device_property_value(property, &value);
     }
 
     Ok(())
@@ -586,124 +526,53 @@ pub fn get_and_display_all_device_properties(ip_address: &str) -> Result<(), Box
 
 fn send_and_log(
     network_client: &mut NetworkClient,
-    property_name: DevicePropertyNameSet,
+    property_name: &DevicePropertyNameSet,
     value: &String,
-    command_message: proto::Command::Command,
+    command: proto::Command::Command,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    network_client.send_command(command_message)?;
-    log::info!(
-        "successfully wrote device property value {:?}={:?}",
-        property_name.as_name(),
-        value
-    );
+    network_client.send_command(command)?;
+    log::info!("wrote device property value {:?}={:?}", property_name.as_name(), value);
     Ok(())
 }
 pub fn set_device_property_value(
     ip_address: &str,
-    property_name: DevicePropertyNameSet,
+    property_name: &DevicePropertyNameSet,
     value: &String,
 ) -> Result<(), Box<dyn std::error::Error>> {
     log::debug!("write device property value {:?}={:?}", property_name.as_name(), value);
 
     let mut network_client = NetworkClient::connect(ip_address)?;
-    let mut command_message = proto::Command::Command::new();
+    let mut command = proto::Command::Command::new();
 
     match property_name {
         DevicePropertyNameSet::TemperatureSetpoint
         | DevicePropertyNameSet::TempSetpoint
         | DevicePropertyNameSet::TempSp => {
-            let i32_value = string_to_i32(value, 59, 104)?;
-            command_message.set_set_temperature_setpoint_fahrenheit(i32_value);
+            command.set_set_temperature_setpoint_fahrenheit(string_to_i32(value, 59, 104)?)
         }
-        DevicePropertyNameSet::Pump1 => {
-            let pump_status = string_to_set_pump_status(value)?;
-            command_message.set_set_pump_1(pump_status);
-        }
-        DevicePropertyNameSet::Pump2 => {
-            let pump_status = string_to_set_pump_status(value)?;
-            command_message.set_set_pump_2(pump_status);
-        }
-        DevicePropertyNameSet::Pump3 => {
-            let pump_status = string_to_set_pump_status(value)?;
-            command_message.set_set_pump_3(pump_status);
-        }
-        DevicePropertyNameSet::Pump4 => {
-            let pump_status = string_to_set_pump_status(value)?;
-            command_message.set_set_pump_4(pump_status);
-        }
-        DevicePropertyNameSet::Pump5 => {
-            let pump_status = string_to_set_pump_status(value)?;
-            command_message.set_set_pump_5(pump_status);
-        }
-        DevicePropertyNameSet::Blower1 => {
-            let pump_status = string_to_set_pump_status(value)?;
-            command_message.set_set_blower_1(pump_status);
-        }
-        DevicePropertyNameSet::Blower2 => {
-            let pump_status = string_to_set_pump_status(value)?;
-            command_message.set_set_blower_2(pump_status);
-        }
-        DevicePropertyNameSet::Lights => {
-            let bool_value = string_to_bool(value)?;
-            command_message.set_set_lights(bool_value);
-        }
-        DevicePropertyNameSet::Stereo => {
-            let bool_value = string_to_bool(value)?;
-            command_message.set_set_stereo(bool_value);
-        }
-        DevicePropertyNameSet::Filter => {
-            let bool_value = string_to_bool(value)?;
-            command_message.set_set_filter(bool_value);
-        }
-        DevicePropertyNameSet::Onzen => {
-            let bool_value = string_to_bool(value)?;
-            command_message.set_set_onzen(bool_value);
-        }
-        DevicePropertyNameSet::Ozone => {
-            let bool_value = string_to_bool(value)?;
-            command_message.set_set_ozone(bool_value);
-        }
-        DevicePropertyNameSet::ExhaustFan => {
-            let bool_value = string_to_bool(value)?;
-            command_message.set_set_exhaust_fan(bool_value);
-        }
-        DevicePropertyNameSet::SaunaState => {
-            let sauna_state = string_to_set_sauna_state(value)?;
-            command_message.set_set_sauna_state(sauna_state);
-        }
-        DevicePropertyNameSet::SaunaTimeLeft => {
-            let i32_value = string_to_i32(value, 0, 120)?;
-            command_message.set_set_sauna_time_left(i32_value);
-        }
-        DevicePropertyNameSet::AllOn => {
-            let bool_value = string_to_bool(value)?;
-            command_message.set_set_all_on(bool_value);
-        }
-        DevicePropertyNameSet::Fogger => {
-            let bool_value = string_to_bool(value)?;
-            command_message.set_set_fogger(bool_value);
-        }
-        DevicePropertyNameSet::SpaboyBoost => {
-            let bool_value = string_to_bool(value)?;
-            command_message.set_set_spaboy_boost(bool_value);
-        }
-        DevicePropertyNameSet::PackReset => {
-            let bool_value = string_to_bool(value)?;
-            command_message.set_set_pack_reset(bool_value);
-        }
-        DevicePropertyNameSet::LogDump => {
-            let bool_value = string_to_bool(value)?;
-            command_message.set_set_log_dump(bool_value);
-        }
-        DevicePropertyNameSet::Sds => {
-            let bool_value = string_to_bool(value)?;
-            command_message.set_set_sds(bool_value);
-        }
-        DevicePropertyNameSet::Yess => {
-            let bool_value = string_to_bool(value)?;
-            command_message.set_set_yess(bool_value);
-        }
+        DevicePropertyNameSet::Pump1 => command.set_set_pump_1(string_to_set_pump_status(value)?),
+        DevicePropertyNameSet::Pump2 => command.set_set_pump_2(string_to_set_pump_status(value)?),
+        DevicePropertyNameSet::Pump3 => command.set_set_pump_3(string_to_set_pump_status(value)?),
+        DevicePropertyNameSet::Pump4 => command.set_set_pump_4(string_to_set_pump_status(value)?),
+        DevicePropertyNameSet::Pump5 => command.set_set_pump_5(string_to_set_pump_status(value)?),
+        DevicePropertyNameSet::Blower1 => command.set_set_blower_1(string_to_set_pump_status(value)?),
+        DevicePropertyNameSet::Blower2 => command.set_set_blower_2(string_to_set_pump_status(value)?),
+        DevicePropertyNameSet::Lights => command.set_set_lights(string_to_bool(value)?),
+        DevicePropertyNameSet::Stereo => command.set_set_stereo(string_to_bool(value)?),
+        DevicePropertyNameSet::Filter => command.set_set_filter(string_to_bool(value)?),
+        DevicePropertyNameSet::Onzen => command.set_set_onzen(string_to_bool(value)?),
+        DevicePropertyNameSet::Ozone => command.set_set_ozone(string_to_bool(value)?),
+        DevicePropertyNameSet::ExhaustFan => command.set_set_exhaust_fan(string_to_bool(value)?),
+        DevicePropertyNameSet::SaunaState => command.set_set_sauna_state(string_to_set_sauna_state(value)?),
+        DevicePropertyNameSet::SaunaTimeLeft => command.set_set_sauna_time_left(string_to_i32(value, 0, 120)?),
+        DevicePropertyNameSet::AllOn => command.set_set_all_on(string_to_bool(value)?),
+        DevicePropertyNameSet::Fogger => command.set_set_fogger(string_to_bool(value)?),
+        DevicePropertyNameSet::SpaboyBoost => command.set_set_spaboy_boost(string_to_bool(value)?),
+        DevicePropertyNameSet::PackReset => command.set_set_pack_reset(string_to_bool(value)?),
+        DevicePropertyNameSet::LogDump => command.set_set_log_dump(string_to_bool(value)?),
+        DevicePropertyNameSet::Sds => command.set_set_sds(string_to_bool(value)?),
+        DevicePropertyNameSet::Yess => command.set_set_yess(string_to_bool(value)?),
     }
 
-    send_and_log(&mut network_client, property_name, value, command_message)
+    send_and_log(&mut network_client, property_name, value, command)
 }

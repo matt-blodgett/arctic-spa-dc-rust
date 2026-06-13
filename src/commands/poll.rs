@@ -97,7 +97,7 @@ pub fn poll_device(
         "requesting {} message types once for initial data sync",
         once_per_session_message_types.len()
     );
-    for message_type in once_per_session_message_types {
+    for message_type in once_per_session_message_types.iter() {
         network_client.request_message(message_type)?;
     }
 
@@ -117,7 +117,7 @@ pub fn poll_device(
                 .unwrap_or_default();
 
             if elapsed_time >= next_refresh_time {
-                network_client.request_message(*message_type)?;
+                network_client.request_message(message_type)?;
 
                 let next_due_time = elapsed_time + refresh_interval_ms;
                 polling_next_refresh.insert(*message_type, next_due_time);

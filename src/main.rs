@@ -279,14 +279,14 @@ fn main() {
 
             match command {
                 DeviceCommands::Get { property_name } => {
-                    let value = commands::device::get_device_property_value(&ip_address, *property_name)
-                        .unwrap_or_else(|e| {
+                    let value =
+                        commands::device::get_device_property_value(&ip_address, property_name).unwrap_or_else(|e| {
                             fatal_error_and_exit(&format!("failed to get device property value: {:?}", e));
                         });
-                    commands::device::display_device_property_value(*property_name, &value);
+                    commands::device::display_device_property_value(property_name, &value);
                 }
                 DeviceCommands::Set { property_name, value } => {
-                    commands::device::set_device_property_value(&ip_address, *property_name, value).unwrap_or_else(
+                    commands::device::set_device_property_value(&ip_address, property_name, value).unwrap_or_else(
                         |e| {
                             fatal_error_and_exit(&format!("failed to set device property value: {:?}", e));
                         },
@@ -306,13 +306,12 @@ fn main() {
             assert_ip_address(&ip_address);
 
             let message_type: core::net::MessageType = (*message_name).into();
-            let proto_message = commands::query::get_message(&ip_address, message_type).unwrap_or_else(|e| {
+            let proto_message = commands::query::get_message(&ip_address, &message_type).unwrap_or_else(|e| {
                 fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
             });
             commands::query::display_message(&message_type, &proto_message, output_path.as_deref());
         }
         Commands::Poll { reset_database } => {
-            // TODO: command line args?
             assert_ip_address(&ip_address);
 
             commands::poll::poll_device(&ip_address, &config, *reset_database).unwrap_or_else(|e| {
