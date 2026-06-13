@@ -10,6 +10,24 @@ use crate::core::net::{MessageType, ProtoMessage};
 use crate::core::utils::{default_database_path, initialize_path};
 use crate::proto;
 
+macro_rules! execute_sql_batch {
+    ($conn:expr, $($sql:expr),+ $(,)?) => {{
+        $(
+            $conn.execute($sql, [])?;
+        )+
+        Ok::<(), rusqlite::Error>(())
+    }};
+}
+
+macro_rules! log_if_changed {
+    ($has_changed:ident, $label:literal, $old:expr, $new:expr) => {
+        if $old != $new {
+            $has_changed = true;
+            log::debug!(concat!($label, ": old={:?}, new={:?}"), $old, $new);
+        }
+    };
+}
+
 pub struct DatabaseClient {
     path: PathBuf,
     conn: Connection,
@@ -509,20 +527,23 @@ impl DatabaseClient {
             )
         "#;
 
-        self.conn.execute(sql_create_table_process_run, [])?;
-        self.conn.execute(sql_create_table_connection_session, [])?;
-        self.conn.execute(sql_create_table_message_clock, [])?;
-        self.conn.execute(sql_create_table_message_configuration, [])?;
-        self.conn.execute(sql_create_table_message_error, [])?;
-        self.conn.execute(sql_create_table_message_filter, [])?;
-        self.conn.execute(sql_create_table_message_information, [])?;
-        self.conn.execute(sql_create_table_message_live, [])?;
-        self.conn.execute(sql_create_table_message_onzen_live, [])?;
-        self.conn.execute(sql_create_table_message_onzen_settings, [])?;
-        self.conn.execute(sql_create_table_message_peak, [])?;
-        self.conn.execute(sql_create_table_message_peripheral, [])?;
-        self.conn.execute(sql_create_table_message_settings, [])?;
-        self.conn.execute(sql_create_table_command_request, [])?;
+        execute_sql_batch!(
+            self.conn,
+            sql_create_table_process_run,
+            sql_create_table_connection_session,
+            sql_create_table_message_clock,
+            sql_create_table_message_configuration,
+            sql_create_table_message_error,
+            sql_create_table_message_filter,
+            sql_create_table_message_information,
+            sql_create_table_message_live,
+            sql_create_table_message_onzen_live,
+            sql_create_table_message_onzen_settings,
+            sql_create_table_message_peak,
+            sql_create_table_message_peripheral,
+            sql_create_table_message_settings,
+            sql_create_table_command_request,
+        )?;
 
         Ok(())
     }
@@ -944,142 +965,52 @@ impl DatabaseClient {
 
         let mut has_changed = false;
 
-        if last_msg.temperature_fahrenheit() != msg.temperature_fahrenheit() {
-            has_changed = true;
-            log::debug!(
-                "temperature_fahrenheit: old={}, new={}",
-                last_msg.temperature_fahrenheit(),
-                msg.temperature_fahrenheit()
-            );
-        }
-        if last_msg.temperature_setpoint_fahrenheit() != msg.temperature_setpoint_fahrenheit() {
-            has_changed = true;
-            log::debug!(
-                "temperature_setpoint_fahrenheit: old={}, new={}",
-                last_msg.temperature_setpoint_fahrenheit(),
-                msg.temperature_setpoint_fahrenheit()
-            );
-        }
-        if last_msg.pump_1() != msg.pump_1() {
-            has_changed = true;
-            log::debug!("pump_1: old={:?}, new={:?}", last_msg.pump_1(), msg.pump_1());
-        }
-        if last_msg.pump_2() != msg.pump_2() {
-            has_changed = true;
-            log::debug!("pump_2: old={:?}, new={:?}", last_msg.pump_2(), msg.pump_2());
-        }
-        if last_msg.pump_3() != msg.pump_3() {
-            has_changed = true;
-            log::debug!("pump_3: old={:?}, new={:?}", last_msg.pump_3(), msg.pump_3());
-        }
-        if last_msg.pump_4() != msg.pump_4() {
-            has_changed = true;
-            log::debug!("pump_4: old={:?}, new={:?}", last_msg.pump_4(), msg.pump_4());
-        }
-        if last_msg.pump_5() != msg.pump_5() {
-            has_changed = true;
-            log::debug!("pump_5: old={:?}, new={:?}", last_msg.pump_5(), msg.pump_5());
-        }
-        if last_msg.blower_1() != msg.blower_1() {
-            has_changed = true;
-            log::debug!("blower_1: old={:?}, new={:?}", last_msg.blower_1(), msg.blower_1());
-        }
-        if last_msg.blower_2() != msg.blower_2() {
-            has_changed = true;
-            log::debug!("blower_2: old={:?}, new={:?}", last_msg.blower_2(), msg.blower_2());
-        }
-        if last_msg.lights() != msg.lights() {
-            has_changed = true;
-            log::debug!("lights: old={}, new={}", last_msg.lights(), msg.lights());
-        }
-        if last_msg.stereo() != msg.stereo() {
-            has_changed = true;
-            log::debug!("stereo: old={}, new={}", last_msg.stereo(), msg.stereo());
-        }
-        if last_msg.heater_1() != msg.heater_1() {
-            has_changed = true;
-            log::debug!("heater_1: old={:?}, new={:?}", last_msg.heater_1(), msg.heater_1());
-        }
-        if last_msg.heater_2() != msg.heater_2() {
-            has_changed = true;
-            log::debug!("heater_2: old={:?}, new={:?}", last_msg.heater_2(), msg.heater_2());
-        }
-        if last_msg.filter() != msg.filter() {
-            has_changed = true;
-            log::debug!("filter: old={:?}, new={:?}", last_msg.filter(), msg.filter());
-        }
-        if last_msg.onzen() != msg.onzen() {
-            has_changed = true;
-            log::debug!("onzen: old={}, new={}", last_msg.onzen(), msg.onzen());
-        }
-        if last_msg.ozone() != msg.ozone() {
-            has_changed = true;
-            log::debug!("ozone: old={:?}, new={:?}", last_msg.ozone(), msg.ozone());
-        }
-        if last_msg.exhaust_fan() != msg.exhaust_fan() {
-            has_changed = true;
-            log::debug!("exhaust_fan: old={}, new={}", last_msg.exhaust_fan(), msg.exhaust_fan());
-        }
-        if last_msg.sauna() != msg.sauna() {
-            has_changed = true;
-            log::debug!("sauna: old={:?}, new={:?}", last_msg.sauna(), msg.sauna());
-        }
-        if last_msg.heater_adc() != msg.heater_adc() {
-            has_changed = true;
-            log::debug!("heater_adc: old={}, new={}", last_msg.heater_adc(), msg.heater_adc());
-        }
-        if last_msg.sauna_time_remaining() != msg.sauna_time_remaining() {
-            has_changed = true;
-            log::debug!(
-                "sauna_time_remaining: old={}, new={}",
-                last_msg.sauna_time_remaining(),
-                msg.sauna_time_remaining()
-            );
-        }
-        if last_msg.economy() != msg.economy() {
-            has_changed = true;
-            log::debug!("economy: old={}, new={}", last_msg.economy(), msg.economy());
-        }
-        if last_msg.current_adc() != msg.current_adc() {
-            has_changed = true;
-            log::debug!("current_adc: old={}, new={}", last_msg.current_adc(), msg.current_adc());
-        }
-        if last_msg.all_on() != msg.all_on() {
-            has_changed = true;
-            log::debug!("all_on: old={}, new={}", last_msg.all_on(), msg.all_on());
-        }
-        if last_msg.fogger() != msg.fogger() {
-            has_changed = true;
-            log::debug!("fogger: old={}, new={}", last_msg.fogger(), msg.fogger());
-        }
-        if last_msg.error() != msg.error() {
-            has_changed = true;
-            log::debug!("error: old={}, new={}", last_msg.error(), msg.error());
-        }
-        if last_msg.alarm() != msg.alarm() {
-            has_changed = true;
-            log::debug!("alarm: old={}, new={}", last_msg.alarm(), msg.alarm());
-        }
-        if last_msg.status() != msg.status() {
-            has_changed = true;
-            log::debug!("status: old={}, new={}", last_msg.status(), msg.status());
-        }
-        if last_msg.ph() != msg.ph() {
-            has_changed = true;
-            log::debug!("ph: old={}, new={}", last_msg.ph(), msg.ph());
-        }
-        if last_msg.orp() != msg.orp() {
-            has_changed = true;
-            log::debug!("orp: old={}, new={}", last_msg.orp(), msg.orp());
-        }
-        if last_msg.sds() != msg.sds() {
-            has_changed = true;
-            log::debug!("sds: old={}, new={}", last_msg.sds(), msg.sds());
-        }
-        if last_msg.yess() != msg.yess() {
-            has_changed = true;
-            log::debug!("yess: old={}, new={}", last_msg.yess(), msg.yess());
-        }
+        log_if_changed!(
+            has_changed,
+            "temperature_fahrenheit",
+            last_msg.temperature_fahrenheit(),
+            msg.temperature_fahrenheit()
+        );
+        log_if_changed!(
+            has_changed,
+            "temperature_setpoint_fahrenheit",
+            last_msg.temperature_setpoint_fahrenheit(),
+            msg.temperature_setpoint_fahrenheit()
+        );
+        log_if_changed!(has_changed, "pump_1", last_msg.pump_1(), msg.pump_1());
+        log_if_changed!(has_changed, "pump_2", last_msg.pump_2(), msg.pump_2());
+        log_if_changed!(has_changed, "pump_3", last_msg.pump_3(), msg.pump_3());
+        log_if_changed!(has_changed, "pump_4", last_msg.pump_4(), msg.pump_4());
+        log_if_changed!(has_changed, "pump_5", last_msg.pump_5(), msg.pump_5());
+        log_if_changed!(has_changed, "blower_1", last_msg.blower_1(), msg.blower_1());
+        log_if_changed!(has_changed, "blower_2", last_msg.blower_2(), msg.blower_2());
+        log_if_changed!(has_changed, "lights", last_msg.lights(), msg.lights());
+        log_if_changed!(has_changed, "stereo", last_msg.stereo(), msg.stereo());
+        log_if_changed!(has_changed, "heater_1", last_msg.heater_1(), msg.heater_1());
+        log_if_changed!(has_changed, "heater_2", last_msg.heater_2(), msg.heater_2());
+        log_if_changed!(has_changed, "filter", last_msg.filter(), msg.filter());
+        log_if_changed!(has_changed, "onzen", last_msg.onzen(), msg.onzen());
+        log_if_changed!(has_changed, "ozone", last_msg.ozone(), msg.ozone());
+        log_if_changed!(has_changed, "exhaust_fan", last_msg.exhaust_fan(), msg.exhaust_fan());
+        log_if_changed!(has_changed, "sauna", last_msg.sauna(), msg.sauna());
+        log_if_changed!(has_changed, "heater_adc", last_msg.heater_adc(), msg.heater_adc());
+        log_if_changed!(
+            has_changed,
+            "sauna_time_remaining",
+            last_msg.sauna_time_remaining(),
+            msg.sauna_time_remaining()
+        );
+        log_if_changed!(has_changed, "economy", last_msg.economy(), msg.economy());
+        log_if_changed!(has_changed, "current_adc", last_msg.current_adc(), msg.current_adc());
+        log_if_changed!(has_changed, "all_on", last_msg.all_on(), msg.all_on());
+        log_if_changed!(has_changed, "fogger", last_msg.fogger(), msg.fogger());
+        log_if_changed!(has_changed, "error", last_msg.error(), msg.error());
+        log_if_changed!(has_changed, "alarm", last_msg.alarm(), msg.alarm());
+        log_if_changed!(has_changed, "status", last_msg.status(), msg.status());
+        log_if_changed!(has_changed, "ph", last_msg.ph(), msg.ph());
+        log_if_changed!(has_changed, "orp", last_msg.orp(), msg.orp());
+        log_if_changed!(has_changed, "sds", last_msg.sds(), msg.sds());
+        log_if_changed!(has_changed, "yess", last_msg.yess(), msg.yess());
 
         if !has_changed {
             log::debug!("no changes since last message_live");
