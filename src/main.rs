@@ -310,6 +310,7 @@ fn main () {
             commands::query::display_message(&message_type, &proto_message, output_path.as_deref());
         },
         Commands::Poll {  } => {
+            // TODO: command line args?
             assert_ip_address(&ip_address);
 
             commands::poll::poll_device(&ip_address, &config)

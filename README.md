@@ -124,37 +124,37 @@ asdc query onzen-live --ip-address "192.168.0.1" --log-level trace
 Poll hot tub data in a timed, continuous loop.
 1. Connect to the hot tub
 2. Connect to or create a SQLite database file
-3. Request message types with custom refresh intervals and filters
+3. Read from the server and write message types to the database
+4. Customize polling refresh times and filters
 
 **Examples:**
 ```bash
-# #TODO: add command line args
+# start polling with the basic config
 asdc poll
+
+# start polling using the locally running mock server
+asdc poll --mock-server-mode
 ```
 
 ### Config
 
 Manage application settings stored locally to avoid repeating flags.
 
-**Available Properties:**
-- `ip-address` — IP address for your hot tub
-- `log-level` — Logging output level
+**Usage:**
+Properties are set using Json paths
 
 **Examples:**
 ```bash
-# get the stored ip address
-asdc config get ip-address
+# set global logging default output to debug level
+asdc config set logging.level debug
 
-# set the IP address for your hot tub
-asdc config set ip-address 192.168.1.100
+# turn on mock_server mode if running mock server in another terminal
+asdc config set mock_server.enabled true
 
-# set the logging output filter to INFO
-asdc config set log-level info
-
-# list all config properties and current values
+# dump the current config file to examine its contents
 asdc config list
 
-# reset config file with default values
+# reset the config back to factory defaults
 asdc config reset
 ```
 
@@ -169,7 +169,7 @@ This is great for prototyping or sandboxing without worrying about damage to you
 asdc start-mock-server --ip-address "127.0.0.1"
 
 # in a new terminal, connect to the mock server
-asdc query live --mock-server-mode --mock-server-ip-address --ip-address "172.0.0.1
+asdc query live --mock-server-mode
 
 # set configs for easier testing
 asdc config set mock-server-mode 1
