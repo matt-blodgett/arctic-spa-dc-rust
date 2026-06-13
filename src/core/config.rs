@@ -157,7 +157,7 @@ pub struct LoggingConfig {
     #[serde(default = "LoggingConfig::cfg_default_level")]
     pub level: logging::LogLevel,
     #[serde(default)]
-    pub file_path: Option<PathBuf>,
+    pub path: Option<PathBuf>,
 }
 
 impl LoggingConfig {
@@ -168,7 +168,7 @@ impl LoggingConfig {
     pub fn default() -> Self {
         Self {
             level: Self::cfg_default_level(),
-            file_path: None,
+            path: None,
         }
     }
 }
@@ -222,14 +222,14 @@ impl AppConfigManager {
                     )
                 })?;
             }
-            "logging.file_path" => {
+            "logging.path" => {
                 if !value.is_null() {
                     let path = value
                         .as_str()
-                        .ok_or_else(|| "config value for 'logging.file_path' must be a string or null".to_string())?;
+                        .ok_or_else(|| "config value for 'logging.path' must be a string or null".to_string())?;
 
                     if path.trim().is_empty() {
-                        return Err("logging.file_path cannot be empty".into());
+                        return Err("logging.path cannot be empty".into());
                     }
                 }
             }
