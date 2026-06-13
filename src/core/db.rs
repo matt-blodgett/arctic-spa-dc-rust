@@ -1,19 +1,14 @@
 #![allow(dead_code)]
-#![allow(unused_imports)]
 
-
-use std::{fs, os::windows::process};
+use std::fs;
 use std::path::PathBuf;
 
-use chrono::{DateTime, Utc};
-use protobuf::{Enum, Message, MessageDyn};
-use rusqlite::{Connection, Result, ToSql, params};
+use protobuf::Enum;
+use rusqlite::{Connection, Result, params};
 
-
-use crate::proto;
-use crate::core::net::{MessageType, ProtoMessage, NetworkClient};
+use crate::core::net::{MessageType, ProtoMessage};
 use crate::core::utils::{default_database_path, initialize_path};
-
+use crate::proto;
 
 pub struct DatabaseClient {
     path: PathBuf,
@@ -23,7 +18,6 @@ pub struct DatabaseClient {
 }
 
 impl DatabaseClient {
-
     pub fn open(path: Option<&PathBuf>, overwrite: bool) -> Result<Self, Box<dyn std::error::Error>> {
         let db_path = path.unwrap_or(&default_database_path()).to_path_buf();
         let is_new_file = initialize_path(&db_path)?;
@@ -595,7 +589,6 @@ impl DatabaseClient {
                 process_run_id,
                 connection_session_id,
                 msg_rec_at_str,
-
                 msg.year(),
                 msg.month(),
                 msg.day(),
@@ -659,7 +652,6 @@ impl DatabaseClient {
                 process_run_id,
                 connection_session_id,
                 msg_rec_at_str,
-
                 msg.pump1(),
                 msg.pump2(),
                 msg.pump3(),
@@ -725,7 +717,6 @@ impl DatabaseClient {
                 process_run_id,
                 connection_session_id,
                 msg_rec_at_str,
-
                 msg.no_flow(),
                 msg.flow_switch(),
                 msg.heater_over_temperature(),
@@ -772,7 +763,6 @@ impl DatabaseClient {
                 process_run_id,
                 connection_session_id,
                 msg_rec_at_str,
-
                 msg.serial_nums(),
                 msg.filter_state().value(),
                 msg.install_dates()
@@ -834,7 +824,6 @@ impl DatabaseClient {
                 process_run_id,
                 connection_session_id,
                 msg_rec_at_str,
-
                 msg.pack_serial_number(),
                 msg.pack_firmware_version(),
                 msg.pack_hardware_version(),
@@ -950,18 +939,26 @@ impl DatabaseClient {
                 msg.set_yess(row.get(30)?);
 
                 Ok(msg)
-            }
+            },
         )?;
 
         let mut has_changed = false;
 
         if last_msg.temperature_fahrenheit() != msg.temperature_fahrenheit() {
             has_changed = true;
-            log::debug!("temperature_fahrenheit: old={}, new={}", last_msg.temperature_fahrenheit(), msg.temperature_fahrenheit());
+            log::debug!(
+                "temperature_fahrenheit: old={}, new={}",
+                last_msg.temperature_fahrenheit(),
+                msg.temperature_fahrenheit()
+            );
         }
         if last_msg.temperature_setpoint_fahrenheit() != msg.temperature_setpoint_fahrenheit() {
             has_changed = true;
-            log::debug!("temperature_setpoint_fahrenheit: old={}, new={}", last_msg.temperature_setpoint_fahrenheit(), msg.temperature_setpoint_fahrenheit());
+            log::debug!(
+                "temperature_setpoint_fahrenheit: old={}, new={}",
+                last_msg.temperature_setpoint_fahrenheit(),
+                msg.temperature_setpoint_fahrenheit()
+            );
         }
         if last_msg.pump_1() != msg.pump_1() {
             has_changed = true;
@@ -972,9 +969,9 @@ impl DatabaseClient {
             log::debug!("pump_2: old={:?}, new={:?}", last_msg.pump_2(), msg.pump_2());
         }
         if last_msg.pump_3() != msg.pump_3() {
-                has_changed = true;
-                log::debug!("pump_3: old={:?}, new={:?}", last_msg.pump_3(), msg.pump_3());
-            }
+            has_changed = true;
+            log::debug!("pump_3: old={:?}, new={:?}", last_msg.pump_3(), msg.pump_3());
+        }
         if last_msg.pump_4() != msg.pump_4() {
             has_changed = true;
             log::debug!("pump_4: old={:?}, new={:?}", last_msg.pump_4(), msg.pump_4());
@@ -1033,7 +1030,11 @@ impl DatabaseClient {
         }
         if last_msg.sauna_time_remaining() != msg.sauna_time_remaining() {
             has_changed = true;
-            log::debug!("sauna_time_remaining: old={}, new={}", last_msg.sauna_time_remaining(), msg.sauna_time_remaining());
+            log::debug!(
+                "sauna_time_remaining: old={}, new={}",
+                last_msg.sauna_time_remaining(),
+                msg.sauna_time_remaining()
+            );
         }
         if last_msg.economy() != msg.economy() {
             has_changed = true;
@@ -1147,7 +1148,6 @@ impl DatabaseClient {
                 process_run_id,
                 connection_session_id,
                 msg_rec_at_str,
-
                 msg.temperature_fahrenheit(),
                 msg.temperature_setpoint_fahrenheit(),
                 msg.pump_1().value(),
@@ -1179,7 +1179,7 @@ impl DatabaseClient {
                 msg.orp(),
                 msg.sds(),
                 msg.yess()
-            ]
+            ],
         )?;
 
         log::debug!("inserted message_live: received_at={}", msg_rec_at_str);
@@ -1236,7 +1236,6 @@ impl DatabaseClient {
                 process_run_id,
                 connection_session_id,
                 msg_rec_at_str,
-
                 msg.guid(),
                 msg.orp(),
                 msg.ph_100(),
@@ -1317,7 +1316,6 @@ impl DatabaseClient {
                 process_run_id,
                 connection_session_id,
                 msg_rec_at_str,
-
                 msg.guid(),
                 msg.over_voltage(),
                 msg.under_voltage(),
@@ -1402,7 +1400,6 @@ impl DatabaseClient {
                 process_run_id,
                 connection_session_id,
                 msg_rec_at_str,
-
                 msg.peaknum(),
                 msg.peakstart1(),
                 msg.peakend1(),
@@ -1467,7 +1464,6 @@ impl DatabaseClient {
                 process_run_id,
                 connection_session_id,
                 msg_rec_at_str,
-
                 msg.guid(),
                 msg.hardware_version(),
                 msg.firmware_version(),
@@ -1535,7 +1531,6 @@ impl DatabaseClient {
                 process_run_id,
                 connection_session_id,
                 msg_rec_at_str,
-
                 msg.max_filtration_frequency(),
                 msg.min_filtration_frequency(),
                 msg.filtration_frequency(),
@@ -1576,7 +1571,7 @@ impl DatabaseClient {
             MessageType::Command => {
                 log::warn!("received Command message, but insert_message_command is not implemented, skipping");
                 Ok(())
-            },
+            }
             MessageType::Configuration => self.insert_message_configuration(message),
             MessageType::Error => self.insert_message_error(message),
             MessageType::Filter => self.insert_message_filter(message),
@@ -1589,12 +1584,12 @@ impl DatabaseClient {
             MessageType::Router => {
                 log::warn!("received Router message, but insert_message_router is not implemented, skipping");
                 Ok(())
-            },
+            }
             MessageType::Settings => self.insert_message_settings(message),
             MessageType::Heartbeat => {
                 log::warn!("received Heartbeat message, but insert_message_heartbeat is not implemented, skipping");
                 Ok(())
-            },
+            }
         }
     }
 }

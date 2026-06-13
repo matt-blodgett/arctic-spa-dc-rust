@@ -1,15 +1,12 @@
 use std::fs;
 use std::path::PathBuf;
 
-
 const PROTO_DIR_IN: &str = "src/proto_schemas";
 const PROTO_DIR_OUT: &str = "src/proto";
 
-
 fn main() {
     // Create output directory if it doesn't exist
-    fs::create_dir_all(PROTO_DIR_OUT)
-        .expect("Failed to create output directory");
+    fs::create_dir_all(PROTO_DIR_OUT).expect("Failed to create output directory");
 
     // Enumerate all .proto files in the directory
     let proto_files: Vec<PathBuf> = fs::read_dir(PROTO_DIR_IN)

@@ -1,18 +1,15 @@
 #![allow(dead_code)]
 
-
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
-mod proto;
-mod core;
 mod commands;
+mod core;
+mod proto;
 
-use commands::query::QueryMessageName;
 use commands::device::{DevicePropertyNameGet, DevicePropertyNameSet};
-
-
+use commands::query::QueryMessageName;
 
 #[derive(Parser)]
 #[command(name = "asdc")]
@@ -39,7 +36,6 @@ struct Cli {
     command: Commands,
 }
 
-
 #[derive(Subcommand, Debug)]
 enum Commands {
     /// Search the local network for hot tubs and display their IP addresses
@@ -64,7 +60,7 @@ enum Commands {
         output_path: Option<PathBuf>,
     },
     /// Continuously poll protobuf messages from the hot tub and write structured data to a sqlite database
-    Poll { },
+    Poll {},
     /// Store and retrieve this application's settings
     Config {
         #[command(subcommand)]
@@ -77,7 +73,6 @@ enum Commands {
         ip_address: Option<String>,
     },
 }
-
 
 #[derive(Subcommand, Debug)]
 enum DeviceCommands {
@@ -97,9 +92,8 @@ enum DeviceCommands {
         value: String,
     },
     /// Display all device properties
-    List { }
+    List {},
 }
-
 
 #[derive(Subcommand, Debug)]
 enum ConfigCommands {
@@ -117,11 +111,10 @@ enum ConfigCommands {
         value: String,
     },
     /// Display all config properties
-    List { },
+    List {},
     /// Overwrite config file with default values
-    Reset { },
+    Reset {},
 }
-
 
 fn fatal_error_and_exit(message: &str) -> ! {
     log::error!("{}", message);
@@ -135,8 +128,7 @@ fn assert_ip_address(ip_address: &str) {
     }
 }
 
-
-fn main () {
+fn main() {
     let cli = Cli::parse();
 
     // ---------------------------------------------
@@ -155,15 +147,13 @@ fn main () {
     // check if config file location is specified explicitly in cli args
     let mut config = if let Some(path) = cli.config_path.as_ref() {
         log::debug!("config_path: {}", path.display());
-        core::config::AppConfigManager::load_from_path(path)
-            .unwrap_or_else(|e| {
-                fatal_error_and_exit(&format!("failed to load config from specified path: {}", e));
-            })
+        core::config::AppConfigManager::load_from_path(path).unwrap_or_else(|e| {
+            fatal_error_and_exit(&format!("failed to load config from specified path: {}", e));
+        })
     } else {
-        core::config::AppConfigManager::load_or_create()
-            .unwrap_or_else(|e| {
-                fatal_error_and_exit(&format!("failed to load or create config: {}", e));
-            })
+        core::config::AppConfigManager::load_or_create().unwrap_or_else(|e| {
+            fatal_error_and_exit(&format!("failed to load or create config: {}", e));
+        })
     };
 
     // if cli arg for log_level is not present, logging is not initialized - check config file or use default value
@@ -251,16 +241,27 @@ fn main () {
             if *update_config {
                 if devices.is_empty() {
                     if log::log_enabled!(log::Level::Warn) {
-                        log::warn!("--update-config flag is set but no devices were discovered; config file will not be updated");
+                        log::warn!(
+                            "--update-config flag is set but no devices were discovered; config file will not be updated"
+                        );
                     } else {
-                        println!("--update-config flag is set but no devices were discovered; config file will not be updated");
+                        println!(
+                            "--update-config flag is set but no devices were discovered; config file will not be updated"
+                        );
                     }
                 } else {
                     let first_device_ip = devices.remove(0);
-                    log::info!("updating config with first discovered device's IP address: {}", first_device_ip);
-                    println!("updating config with first discovered device's IP address: {}", first_device_ip);
+                    log::info!(
+                        "updating config with first discovered device's IP address: {}",
+                        first_device_ip
+                    );
+                    println!(
+                        "updating config with first discovered device's IP address: {}",
+                        first_device_ip
+                    );
 
-                    config.set_path_value("ip_address", serde_json::Value::String(first_device_ip.clone()))
+                    config
+                        .set_path_value("ip_address", serde_json::Value::String(first_device_ip.clone()))
                         .unwrap_or_else(|e| {
                             fatal_error_and_exit(&format!("failed to set config: {:?}", e));
                         });
@@ -268,7 +269,7 @@ fn main () {
                     println!("config updated successfully");
                 }
             }
-        },
+        }
         Commands::Device { command } => {
             assert_ip_address(&ip_address);
 
@@ -279,71 +280,68 @@ fn main () {
                             fatal_error_and_exit(&format!("failed to get device property value: {:?}", e));
                         });
                     commands::device::display_device_property_value(*property_name, &value);
-                },
+                }
                 DeviceCommands::Set { property_name, value } => {
-                    commands::device::set_device_property_value(&ip_address, *property_name, value)
-                        .unwrap_or_else(|e| {
+                    commands::device::set_device_property_value(&ip_address, *property_name, value).unwrap_or_else(
+                        |e| {
                             fatal_error_and_exit(&format!("failed to set device property value: {:?}", e));
-                        });
-                },
-                DeviceCommands::List {  } => {
-                    commands::device::get_and_display_all_device_properties(&ip_address)
-                        .unwrap_or_else(|e| {
-                            fatal_error_and_exit(&format!("failed to display all device properties: {:?}", e));
-                        });
+                        },
+                    );
+                }
+                DeviceCommands::List {} => {
+                    commands::device::get_and_display_all_device_properties(&ip_address).unwrap_or_else(|e| {
+                        fatal_error_and_exit(&format!("failed to display all device properties: {:?}", e));
+                    });
                 }
             }
-        },
-        Commands::Query { message_name, output_path } => {
+        }
+        Commands::Query {
+            message_name,
+            output_path,
+        } => {
             assert_ip_address(&ip_address);
 
             let message_type: core::net::MessageType = (*message_name).into();
-            let proto_message = commands::query::get_message(&ip_address, message_type)
-                .unwrap_or_else(|e| {
-                    fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
-                });
+            let proto_message = commands::query::get_message(&ip_address, message_type).unwrap_or_else(|e| {
+                fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
+            });
             commands::query::display_message(&message_type, &proto_message, output_path.as_deref());
-        },
-        Commands::Poll {  } => {
+        }
+        Commands::Poll {} => {
             // TODO: command line args?
             assert_ip_address(&ip_address);
 
-            commands::poll::poll_device(&ip_address, &config)
-                .unwrap_or_else(|e| {
-                    fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
+            commands::poll::poll_device(&ip_address, &config).unwrap_or_else(|e| {
+                fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
+            });
+        }
+        Commands::Config { command } => match command {
+            ConfigCommands::Get { property_path } => {
+                let value = config.get_path_value(property_path).unwrap_or_else(|| {
+                    fatal_error_and_exit(&format!("failed to get config value for path '{}'", property_path));
                 });
-        },
-        Commands::Config { command } => {
-            match command {
-                ConfigCommands::Get { property_path } => {
-                    let value = config.get_path_value(property_path)
-                        .unwrap_or_else(|| {
-                            fatal_error_and_exit(&format!("failed to get config value for path '{}'", property_path));
-                        });
-                    println!("got config value -> {:?} = {:?}", property_path, value);
-                },
-                ConfigCommands::Set { property_path, value } => {
-                    config.set_path_value(property_path, value.clone().into())
-                        .unwrap_or_else(|e| {
-                            fatal_error_and_exit(&format!("failed to set config: {:?}", e));
-                        });
-                    println!("set config value -> {:?} = {:?}", property_path, value);
-                },
-                ConfigCommands::List {  } => {
-                    let config_json_string = config.to_string_pretty()
-                        .unwrap_or_else(|e| {
-                            fatal_error_and_exit(&format!("failed to display config: {:?}", e));
-                        });
-                    println!("displaying all config properties");
-                    println!("{}", config_json_string);
-                },
-                ConfigCommands::Reset {  } => {
-                    config.reset_to_defaults()
-                        .unwrap_or_else(|e| {
-                            fatal_error_and_exit(&format!("failed to reset config: {:?}", e));
-                        });
-                    println!("config reset to default values");
-                }
+                println!("got config value -> {:?} = {:?}", property_path, value);
+            }
+            ConfigCommands::Set { property_path, value } => {
+                config
+                    .set_path_value(property_path, value.clone().into())
+                    .unwrap_or_else(|e| {
+                        fatal_error_and_exit(&format!("failed to set config: {:?}", e));
+                    });
+                println!("set config value -> {:?} = {:?}", property_path, value);
+            }
+            ConfigCommands::List {} => {
+                let config_json_string = config.to_string_pretty().unwrap_or_else(|e| {
+                    fatal_error_and_exit(&format!("failed to display config: {:?}", e));
+                });
+                println!("displaying all config properties");
+                println!("{}", config_json_string);
+            }
+            ConfigCommands::Reset {} => {
+                config.reset_to_defaults().unwrap_or_else(|e| {
+                    fatal_error_and_exit(&format!("failed to reset config: {:?}", e));
+                });
+                println!("config reset to default values");
             }
         },
         Commands::StartMockServer { ip_address } => {
@@ -359,10 +357,9 @@ fn main () {
 
             log::debug!("starting mock server: bind_address={:}", bind_address);
 
-            commands::mock_server::run(&bind_address)
-                .unwrap_or_else(|e| {
-                    fatal_error_and_exit(&format!("mock server failed: {:#?}", e));
-                });
-        },
+            commands::mock_server::run(&bind_address).unwrap_or_else(|e| {
+                fatal_error_and_exit(&format!("mock server failed: {:#?}", e));
+            });
+        }
     }
 }

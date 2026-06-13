@@ -1,8 +1,7 @@
 use clap::ValueEnum;
 
+use crate::core::net::{MessageType, NetworkClient, ProtoMessage};
 use crate::proto;
-use crate::core::net::{MessageType, ProtoMessage, NetworkClient};
-
 
 #[derive(ValueEnum, Copy, Clone, Debug)]
 pub enum DevicePropertyNameGet {
@@ -130,7 +129,6 @@ impl DevicePropertyNameGet {
     }
 }
 
-
 #[derive(ValueEnum, Copy, Clone, Debug)]
 pub enum DevicePropertyNameSet {
     /// Temperature setpoint in Fahrenheit (number: min 59, max 104)
@@ -234,7 +232,6 @@ impl DevicePropertyNameSet {
     }
 }
 
-
 fn pump_status_to_string(value: proto::Live::live::PumpStatus) -> String {
     match value {
         proto::Live::live::PumpStatus::PUMP_OFF => "OFF".to_string(),
@@ -303,8 +300,9 @@ fn i32_to_string(value: i32) -> String {
     value.to_string()
 }
 
-
-fn string_to_set_pump_status(value: &String) -> Result<proto::Command::command::SetPumpStatus, Box<dyn std::error::Error>> {
+fn string_to_set_pump_status(
+    value: &String,
+) -> Result<proto::Command::command::SetPumpStatus, Box<dyn std::error::Error>> {
     let value_parsed = value.trim().to_uppercase();
     match value_parsed.as_str() {
         "OFF" => Ok(proto::Command::command::SetPumpStatus::PUMP_OFF),
@@ -313,7 +311,9 @@ fn string_to_set_pump_status(value: &String) -> Result<proto::Command::command::
         _ => Err(format!("invalid set pump status value: {}", value).into()),
     }
 }
-fn string_to_set_sauna_state(value: &String) -> Result<proto::Command::command::SetSaunaState, Box<dyn std::error::Error>> {
+fn string_to_set_sauna_state(
+    value: &String,
+) -> Result<proto::Command::command::SetSaunaState, Box<dyn std::error::Error>> {
     let value_parsed = value.trim().to_uppercase();
     match value_parsed.as_str() {
         "IDLE" => Ok(proto::Command::command::SetSaunaState::SAUNA_IDLE),
@@ -335,18 +335,13 @@ fn string_to_bool(value: &String) -> Result<bool, Box<dyn std::error::Error>> {
 fn string_to_i32(value: &String, min: i32, max: i32) -> Result<i32, Box<dyn std::error::Error>> {
     let value_parsed = value.parse::<i32>()?;
     if value_parsed < min || value_parsed > max {
-        return Err(
-            Box::new(
-                std::io::Error::new(
-                    std::io::ErrorKind::InvalidInput,
-                    format!("value {} is out of range ({}-{})", value_parsed, min, max)
-                )
-            )
-        );
+        return Err(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!("value {} is out of range ({}-{})", value_parsed, min, max),
+        )));
     }
     Ok(value_parsed)
 }
-
 
 fn device_property_name_to_message_type(property_name: DevicePropertyNameGet) -> MessageType {
     match property_name {
@@ -376,18 +371,18 @@ fn device_property_name_to_message_type(property_name: DevicePropertyNameGet) ->
         | DevicePropertyNameGet::AllOn
         | DevicePropertyNameGet::Fogger
         | DevicePropertyNameGet::Sds
-        | DevicePropertyNameGet::Yess => {
-            MessageType::Live
-        },
+        | DevicePropertyNameGet::Yess => MessageType::Live,
         DevicePropertyNameGet::Orp
         | DevicePropertyNameGet::Ph100
         | DevicePropertyNameGet::OrpColor
-        | DevicePropertyNameGet::PhColor => {
-            MessageType::OnzenLive
-        }
+        | DevicePropertyNameGet::PhColor => MessageType::OnzenLive,
     }
 }
-fn get_message_value_from_property(message_type: MessageType, message: &ProtoMessage, property_name: DevicePropertyNameGet) -> Result<String, Box<dyn std::error::Error>> {
+fn get_message_value_from_property(
+    message_type: MessageType,
+    message: &ProtoMessage,
+    property_name: DevicePropertyNameGet,
+) -> Result<String, Box<dyn std::error::Error>> {
     if message_type == MessageType::Live {
         let message_live = message.as_live().ok_or("Failed to convert message to Live")?;
         match property_name {
@@ -401,60 +396,136 @@ fn get_message_value_from_property(message_type: MessageType, message: &ProtoMes
             | DevicePropertyNameGet::TempSp => {
                 return Ok(i32_to_string(message_live.temperature_setpoint_fahrenheit()));
             }
-            DevicePropertyNameGet::Pump1 => { return Ok(pump_status_to_string(message_live.pump_1())); }
-            DevicePropertyNameGet::Pump2 => { return Ok(pump_status_to_string(message_live.pump_2())); }
-            DevicePropertyNameGet::Pump3 => { return Ok(pump_status_to_string(message_live.pump_3())); }
-            DevicePropertyNameGet::Pump4 => { return Ok(pump_status_to_string(message_live.pump_4())); }
-            DevicePropertyNameGet::Pump5 => { return Ok(pump_status_to_string(message_live.pump_5())); }
-            DevicePropertyNameGet::Blower1 => { return Ok(pump_status_to_string(message_live.blower_1())); }
-            DevicePropertyNameGet::Blower2 => { return Ok(pump_status_to_string(message_live.blower_2())); }
-            DevicePropertyNameGet::Lights => { return Ok(bool_to_string(message_live.lights())); }
-            DevicePropertyNameGet::Stereo => { return Ok(bool_to_string(message_live.stereo())); }
-            DevicePropertyNameGet::Heater1 => { return Ok(heater_status_to_string(message_live.heater_1())); }
-            DevicePropertyNameGet::Heater2 => { return Ok(heater_status_to_string(message_live.heater_2())); }
-            DevicePropertyNameGet::Filter => { return Ok(filter_status_to_string(message_live.filter())); }
-            DevicePropertyNameGet::Onzen => { return Ok(bool_to_string(message_live.onzen())); }
-            DevicePropertyNameGet::Ozone => { return Ok(ozone_status_to_string(message_live.ozone())); }
-            DevicePropertyNameGet::ExhaustFan => { return Ok(bool_to_string(message_live.exhaust_fan())); }
-            DevicePropertyNameGet::SaunaState => { return Ok(sauna_status_to_string(message_live.sauna())); }
-            DevicePropertyNameGet::SaunaTimeLeft => { return Ok(i32_to_string(message_live.sauna_time_remaining())); }
-            DevicePropertyNameGet::AllOn => { return Ok(bool_to_string(message_live.all_on())); }
-            DevicePropertyNameGet::Fogger => { return Ok(bool_to_string(message_live.fogger())); }
-            DevicePropertyNameGet::Sds => { return Ok(bool_to_string(message_live.sds())); }
-            DevicePropertyNameGet::Yess => { return Ok(bool_to_string(message_live.yess())); }
+            DevicePropertyNameGet::Pump1 => {
+                return Ok(pump_status_to_string(message_live.pump_1()));
+            }
+            DevicePropertyNameGet::Pump2 => {
+                return Ok(pump_status_to_string(message_live.pump_2()));
+            }
+            DevicePropertyNameGet::Pump3 => {
+                return Ok(pump_status_to_string(message_live.pump_3()));
+            }
+            DevicePropertyNameGet::Pump4 => {
+                return Ok(pump_status_to_string(message_live.pump_4()));
+            }
+            DevicePropertyNameGet::Pump5 => {
+                return Ok(pump_status_to_string(message_live.pump_5()));
+            }
+            DevicePropertyNameGet::Blower1 => {
+                return Ok(pump_status_to_string(message_live.blower_1()));
+            }
+            DevicePropertyNameGet::Blower2 => {
+                return Ok(pump_status_to_string(message_live.blower_2()));
+            }
+            DevicePropertyNameGet::Lights => {
+                return Ok(bool_to_string(message_live.lights()));
+            }
+            DevicePropertyNameGet::Stereo => {
+                return Ok(bool_to_string(message_live.stereo()));
+            }
+            DevicePropertyNameGet::Heater1 => {
+                return Ok(heater_status_to_string(message_live.heater_1()));
+            }
+            DevicePropertyNameGet::Heater2 => {
+                return Ok(heater_status_to_string(message_live.heater_2()));
+            }
+            DevicePropertyNameGet::Filter => {
+                return Ok(filter_status_to_string(message_live.filter()));
+            }
+            DevicePropertyNameGet::Onzen => {
+                return Ok(bool_to_string(message_live.onzen()));
+            }
+            DevicePropertyNameGet::Ozone => {
+                return Ok(ozone_status_to_string(message_live.ozone()));
+            }
+            DevicePropertyNameGet::ExhaustFan => {
+                return Ok(bool_to_string(message_live.exhaust_fan()));
+            }
+            DevicePropertyNameGet::SaunaState => {
+                return Ok(sauna_status_to_string(message_live.sauna()));
+            }
+            DevicePropertyNameGet::SaunaTimeLeft => {
+                return Ok(i32_to_string(message_live.sauna_time_remaining()));
+            }
+            DevicePropertyNameGet::AllOn => {
+                return Ok(bool_to_string(message_live.all_on()));
+            }
+            DevicePropertyNameGet::Fogger => {
+                return Ok(bool_to_string(message_live.fogger()));
+            }
+            DevicePropertyNameGet::Sds => {
+                return Ok(bool_to_string(message_live.sds()));
+            }
+            DevicePropertyNameGet::Yess => {
+                return Ok(bool_to_string(message_live.yess()));
+            }
             _ => {
-                log::error!("unsupported property for Live message type: {:?}", property_name.as_name());
-                return Err(format!("unsupported property for Live message type: {:?}", property_name.as_name()).into());
+                log::error!(
+                    "unsupported property for Live message type: {:?}",
+                    property_name.as_name()
+                );
+                return Err(format!(
+                    "unsupported property for Live message type: {:?}",
+                    property_name.as_name()
+                )
+                .into());
             }
         }
     } else if message_type == MessageType::OnzenLive {
-        let message_onzen_live = message.as_onzen_live().ok_or("Failed to convert message to OnzenLive")?;
+        let message_onzen_live = message
+            .as_onzen_live()
+            .ok_or("Failed to convert message to OnzenLive")?;
         match property_name {
-            DevicePropertyNameGet::Orp => { return Ok(i32_to_string(message_onzen_live.orp())); }
-            DevicePropertyNameGet::Ph100 => { return Ok(i32_to_string(message_onzen_live.ph_100())); }
-            DevicePropertyNameGet::OrpColor => { return Ok(color_status_to_string(message_onzen_live.orp_color())); }
-            DevicePropertyNameGet::PhColor => { return Ok(color_status_to_string(message_onzen_live.ph_color())); }
+            DevicePropertyNameGet::Orp => {
+                return Ok(i32_to_string(message_onzen_live.orp()));
+            }
+            DevicePropertyNameGet::Ph100 => {
+                return Ok(i32_to_string(message_onzen_live.ph_100()));
+            }
+            DevicePropertyNameGet::OrpColor => {
+                return Ok(color_status_to_string(message_onzen_live.orp_color()));
+            }
+            DevicePropertyNameGet::PhColor => {
+                return Ok(color_status_to_string(message_onzen_live.ph_color()));
+            }
             _ => {
-                log::error!("unsupported property for OnzenLive message type: {:?}", property_name.as_name());
-                return Err(format!("unsupported property for OnzenLive message type: {:?}", property_name.as_name()).into());
+                log::error!(
+                    "unsupported property for OnzenLive message type: {:?}",
+                    property_name.as_name()
+                );
+                return Err(format!(
+                    "unsupported property for OnzenLive message type: {:?}",
+                    property_name.as_name()
+                )
+                .into());
             }
         }
     }
 
     Err(format!("unsupported message type: {:?}", message_type).into())
 }
-fn get_message_value(network_client: &mut NetworkClient, property_name: DevicePropertyNameGet) -> Result<String, Box<dyn std::error::Error>> {
+fn get_message_value(
+    network_client: &mut NetworkClient,
+    property_name: DevicePropertyNameGet,
+) -> Result<String, Box<dyn std::error::Error>> {
     let message_type = device_property_name_to_message_type(property_name);
     let message = network_client.request_message_and_await_response(message_type)?;
     let value = get_message_value_from_property(message_type, &message, property_name)?;
     Ok(value)
 }
 
-pub fn get_device_property_value(ip_address: &str, property_name: DevicePropertyNameGet) -> Result<String, Box<dyn std::error::Error>> {
+pub fn get_device_property_value(
+    ip_address: &str,
+    property_name: DevicePropertyNameGet,
+) -> Result<String, Box<dyn std::error::Error>> {
     log::debug!("read device property value {:?}", property_name.as_name());
     let mut network_client = NetworkClient::connect(ip_address)?;
     let value = get_message_value(&mut network_client, property_name)?;
-    log::info!("successfully read device property value {:?}={:?}", property_name.as_name(), value);
+    log::info!(
+        "successfully read device property value {:?}={:?}",
+        property_name.as_name(),
+        value
+    );
     Ok(value)
 }
 pub fn display_device_property_value(property_name: DevicePropertyNameGet, value: &String) -> () {
@@ -497,7 +568,7 @@ pub fn get_and_display_all_device_properties(ip_address: &str) -> Result<(), Box
         DevicePropertyNameGet::Orp,
         DevicePropertyNameGet::Ph100,
         DevicePropertyNameGet::OrpColor,
-        DevicePropertyNameGet::PhColor
+        DevicePropertyNameGet::PhColor,
     ];
 
     for property in all_properties_live.iter() {
@@ -513,7 +584,6 @@ pub fn get_and_display_all_device_properties(ip_address: &str) -> Result<(), Box
     Ok(())
 }
 
-
 fn send_and_log(
     network_client: &mut NetworkClient,
     property_name: DevicePropertyNameSet,
@@ -521,10 +591,18 @@ fn send_and_log(
     command_message: proto::Command::Command,
 ) -> Result<(), Box<dyn std::error::Error>> {
     network_client.send_command(command_message)?;
-    log::info!("successfully wrote device property value {:?}={:?}", property_name.as_name(), value);
+    log::info!(
+        "successfully wrote device property value {:?}={:?}",
+        property_name.as_name(),
+        value
+    );
     Ok(())
 }
-pub fn set_device_property_value(ip_address: &str, property_name: DevicePropertyNameSet, value: &String) -> Result<(), Box<dyn std::error::Error>> {
+pub fn set_device_property_value(
+    ip_address: &str,
+    property_name: DevicePropertyNameSet,
+    value: &String,
+) -> Result<(), Box<dyn std::error::Error>> {
     log::debug!("write device property value {:?}={:?}", property_name.as_name(), value);
 
     let mut network_client = NetworkClient::connect(ip_address)?;

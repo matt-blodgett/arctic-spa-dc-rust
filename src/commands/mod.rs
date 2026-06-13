@@ -1,5 +1,5 @@
-pub mod discover;
 pub mod device;
-pub mod query;
-pub mod poll;
+pub mod discover;
 pub mod mock_server;
+pub mod poll;
+pub mod query;

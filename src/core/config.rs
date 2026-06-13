@@ -1,18 +1,16 @@
 #![allow(dead_code)]
 
-
+use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::collections::HashMap;
 
-use serde_json::Value;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 use crate::commands::mock_server;
+use crate::core::logging::{DEFAULT_LOGGING_LEVEL, LogLevel};
 use crate::core::net::MessageType;
-use crate::core::logging::{LogLevel, DEFAULT_LOGGING_LEVEL};
 use crate::core::utils::{default_config_path, initialize_path};
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MockServerConfig {
@@ -23,7 +21,9 @@ pub struct MockServerConfig {
 }
 
 impl MockServerConfig {
-    fn default_mock_server_ip_address() -> String { String::from(mock_server::DEFAULT_HOST) }
+    fn default_mock_server_ip_address() -> String {
+        String::from(mock_server::DEFAULT_HOST)
+    }
 
     pub fn default() -> Self {
         Self {
@@ -33,7 +33,6 @@ impl MockServerConfig {
     }
 }
 
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MessagePollingConfig {
     pub refresh_interval_ms: u64,
@@ -41,7 +40,6 @@ pub struct MessagePollingConfig {
 }
 
 pub type MessagePollingConfigs = HashMap<MessageType, MessagePollingConfig>;
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PollingConfig {
@@ -52,63 +50,98 @@ pub struct PollingConfig {
 impl PollingConfig {
     pub fn default() -> Self {
         let messages = MessagePollingConfigs::from([
-            (MessageType::Clock, MessagePollingConfig {
-                refresh_interval_ms: 59_000,
-                once_per_session: false,
-            }),
-            (MessageType::Configuration, MessagePollingConfig {
-                refresh_interval_ms: 0,
-                once_per_session: true,
-            }),
-            (MessageType::Error, MessagePollingConfig {
-                refresh_interval_ms: 15_000,
-                once_per_session: false,
-            }),
-            (MessageType::Filter, MessagePollingConfig {
-                refresh_interval_ms: 0,
-                once_per_session: true,
-            }),
-            (MessageType::Information, MessagePollingConfig {
-                refresh_interval_ms: 0,
-                once_per_session: true,
-            }),
-            (MessageType::Live, MessagePollingConfig {
-                refresh_interval_ms: 2_500,
-                once_per_session: false,
-            }),
-            (MessageType::OnzenLive, MessagePollingConfig {
-                refresh_interval_ms: 2_500,
-                once_per_session: false,
-            }),
-            (MessageType::OnzenSettings, MessagePollingConfig {
-                refresh_interval_ms: 0,
-                once_per_session: true,
-            }),
-            (MessageType::Peak, MessagePollingConfig {
-                refresh_interval_ms: 0,
-                once_per_session: true,
-            }),
-            (MessageType::Peripheral, MessagePollingConfig {
-                refresh_interval_ms: 0,
-                once_per_session: true,
-            }),
-            (MessageType::Router, MessagePollingConfig {
-                refresh_interval_ms: 0,
-                once_per_session: true,
-            }),
-            (MessageType::Settings, MessagePollingConfig {
-                refresh_interval_ms: 0,
-                once_per_session: true,
-            }),
+            (
+                MessageType::Clock,
+                MessagePollingConfig {
+                    refresh_interval_ms: 59_000,
+                    once_per_session: false,
+                },
+            ),
+            (
+                MessageType::Configuration,
+                MessagePollingConfig {
+                    refresh_interval_ms: 0,
+                    once_per_session: true,
+                },
+            ),
+            (
+                MessageType::Error,
+                MessagePollingConfig {
+                    refresh_interval_ms: 15_000,
+                    once_per_session: false,
+                },
+            ),
+            (
+                MessageType::Filter,
+                MessagePollingConfig {
+                    refresh_interval_ms: 0,
+                    once_per_session: true,
+                },
+            ),
+            (
+                MessageType::Information,
+                MessagePollingConfig {
+                    refresh_interval_ms: 0,
+                    once_per_session: true,
+                },
+            ),
+            (
+                MessageType::Live,
+                MessagePollingConfig {
+                    refresh_interval_ms: 2_500,
+                    once_per_session: false,
+                },
+            ),
+            (
+                MessageType::OnzenLive,
+                MessagePollingConfig {
+                    refresh_interval_ms: 2_500,
+                    once_per_session: false,
+                },
+            ),
+            (
+                MessageType::OnzenSettings,
+                MessagePollingConfig {
+                    refresh_interval_ms: 0,
+                    once_per_session: true,
+                },
+            ),
+            (
+                MessageType::Peak,
+                MessagePollingConfig {
+                    refresh_interval_ms: 0,
+                    once_per_session: true,
+                },
+            ),
+            (
+                MessageType::Peripheral,
+                MessagePollingConfig {
+                    refresh_interval_ms: 0,
+                    once_per_session: true,
+                },
+            ),
+            (
+                MessageType::Router,
+                MessagePollingConfig {
+                    refresh_interval_ms: 0,
+                    once_per_session: true,
+                },
+            ),
+            (
+                MessageType::Settings,
+                MessagePollingConfig {
+                    refresh_interval_ms: 0,
+                    once_per_session: true,
+                },
+            ),
         ]);
 
         Self {
             messages,
-            max_duration_ms: 0
+            max_duration_ms: 0,
         }
     }
 }
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LoggingConfig {
@@ -117,7 +150,9 @@ pub struct LoggingConfig {
 }
 
 impl LoggingConfig {
-    fn default_level() -> LogLevel { DEFAULT_LOGGING_LEVEL }
+    fn default_level() -> LogLevel {
+        DEFAULT_LOGGING_LEVEL
+    }
 
     pub fn default() -> Self {
         Self {
@@ -126,7 +161,6 @@ impl LoggingConfig {
     }
 }
 
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AppConfig {
     #[serde(default)]
@@ -134,11 +168,12 @@ pub struct AppConfig {
     pub logging: LoggingConfig,
     pub mock_server: MockServerConfig,
     pub polling: PollingConfig,
-
 }
 
 impl AppConfig {
-    fn default_ip_address() -> String { String::from("") }
+    fn default_ip_address() -> String {
+        String::from("")
+    }
 
     pub fn default() -> Self {
         Self {
@@ -150,20 +185,16 @@ impl AppConfig {
     }
 }
 
-
 pub struct AppConfigManager {
     data: AppConfig,
     path: PathBuf,
 }
 
 impl AppConfigManager {
-
     // TODO: ADD LOGGING
     pub fn get_path_value(&self, path: &str) -> Option<serde_json::Value> {
         let json = serde_json::to_value(&self.data).ok()?;
-        path.split('.').fold(Some(json), |node, key| {
-            node?.get(key).cloned()
-        })
+        path.split('.').fold(Some(json), |node, key| node?.get(key).cloned())
     }
 
     pub fn set_path_value(&mut self, path: &str, value: serde_json::Value) -> Result<(), Box<dyn std::error::Error>> {
@@ -176,9 +207,7 @@ impl AppConfigManager {
 
         let current_value = json
             .pointer(&pointer_path)
-            .ok_or_else(|| {
-                format!("invalid config path: {}", path)
-            })?;
+            .ok_or_else(|| format!("invalid config path: {}", path))?;
 
         let template_value = if current_value.is_null() {
             default_json.pointer(&pointer_path).unwrap_or(current_value)
@@ -189,12 +218,10 @@ impl AppConfigManager {
         let coerced_value = if template_value.is_number() {
             let number = match value {
                 Value::Number(number) => number,
-                Value::String(string_value) => {
-                    match serde_json::from_str::<Value>(&string_value) {
-                        Ok(Value::Number(number)) => number,
-                        _ => return Err("invalid number value".into()),
-                    }
-                }
+                Value::String(string_value) => match serde_json::from_str::<Value>(&string_value) {
+                    Ok(Value::Number(number)) => number,
+                    _ => return Err("invalid number value".into()),
+                },
                 _ => return Err("invalid number value".into()),
             };
 
@@ -202,12 +229,10 @@ impl AppConfigManager {
         } else if template_value.is_boolean() {
             let boolean = match value {
                 Value::Bool(boolean) => boolean,
-                Value::String(string_value) => {
-                    match serde_json::from_str::<Value>(&string_value) {
-                        Ok(Value::Bool(boolean)) => boolean,
-                        _ => return Err("invalid boolean value".into()),
-                    }
-                }
+                Value::String(string_value) => match serde_json::from_str::<Value>(&string_value) {
+                    Ok(Value::Bool(boolean)) => boolean,
+                    _ => return Err("invalid boolean value".into()),
+                },
                 _ => return Err("invalid boolean value".into()),
             };
 
@@ -218,9 +243,7 @@ impl AppConfigManager {
 
         let old_value = json
             .pointer_mut(&pointer_path)
-            .ok_or_else(|| {
-                format!("invalid config path: {}", path)
-            })?;
+            .ok_or_else(|| format!("invalid config path: {}", path))?;
         *old_value = coerced_value;
 
         self.data = serde_json::from_value(json)?;
@@ -235,7 +258,10 @@ impl AppConfigManager {
 
         // if config file doesn't exist, create it from template
         if is_new_file {
-            log::debug!("config file {:#?} not found, setting default values", config_path.display());
+            log::debug!(
+                "config file {:#?} not found, setting default values",
+                config_path.display()
+            );
 
             let default_config = AppConfig::default();
             let file = std::fs::File::create(&config_path)?;
@@ -277,7 +303,10 @@ impl AppConfigManager {
         let is_new_file = initialize_path(config_path)?;
 
         let data: AppConfig = if is_new_file {
-            log::debug!("config file {:#?} not found, creating with default values", config_path.display());
+            log::debug!(
+                "config file {:#?} not found, creating with default values",
+                config_path.display()
+            );
             AppConfig::default()
         } else {
             let config_content = fs::read_to_string(&config_path)?;

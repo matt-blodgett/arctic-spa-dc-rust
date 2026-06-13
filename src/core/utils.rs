@@ -1,16 +1,11 @@
-
-
 use std::path::PathBuf;
-
 
 const APP_QUALIFIER: &str = "";
 const APP_ORGANIZATION: &str = "";
 const APP_APPLICATION: &str = "arctic-spa-dc-rust";
 
-
 pub const DB_DEFAULT_FILE_NAME: &str = "asdc.db";
 pub const CONFIG_DEFAULT_FILE_NAME: &str = "config.json";
-
 
 pub fn default_data_dir() -> PathBuf {
     if let Some(proj_dirs) = directories::ProjectDirs::from(APP_QUALIFIER, APP_ORGANIZATION, APP_APPLICATION) {

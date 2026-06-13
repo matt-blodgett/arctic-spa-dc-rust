@@ -1,15 +1,12 @@
 #![allow(dead_code)]
 
-
 use std::io::Write;
 use std::str::FromStr;
 
 use clap::ValueEnum;
 use serde::{Deserialize, Serialize};
 
-
-#[derive(Serialize, Deserialize)]
-#[derive(ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, ValueEnum, Debug, Clone, Copy, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum LogLevel {
     Off,
@@ -63,9 +60,7 @@ impl FromStr for LogLevel {
     }
 }
 
-
 pub const DEFAULT_LOGGING_LEVEL: LogLevel = LogLevel::Off;
-
 
 pub fn init_logging(log_level: LogLevel) -> () {
     let level_filter = log_level.to_level_filter();

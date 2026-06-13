@@ -1,17 +1,13 @@
 #![allow(dead_code)]
-#![allow(unused_imports)]
-
 
 use std::io::Error;
 use std::path::Path;
 use std::time::SystemTime;
 
 use clap::ValueEnum;
-use chrono::{DateTime, Utc};
 
+use crate::core::net::{MessageType, NetworkClient, ProtoMessage};
 use crate::proto;
-use crate::core::net::{MessageType, ProtoMessage, NetworkClient};
-
 
 #[derive(ValueEnum, Copy, Clone, Debug)]
 pub enum QueryMessageName {
@@ -38,7 +34,7 @@ pub enum QueryMessageName {
     /// Status of orp and ph levels, electrode details, etc
     OnzenLive,
     /// Definitions for minimum and maximum thresholds of OnzenLive statuses
-    OnzenSettings
+    OnzenSettings,
 }
 
 impl From<QueryMessageName> for MessageType {
@@ -60,14 +56,16 @@ impl From<QueryMessageName> for MessageType {
     }
 }
 
-
 pub fn get_message(ip_address: &str, message_type: MessageType) -> Result<ProtoMessage, Error> {
-    log::info!("getting message: host={:?}, message_type={:?}", ip_address, message_type);
+    log::info!(
+        "getting message: host={:?}, message_type={:?}",
+        ip_address,
+        message_type
+    );
     let mut network_client = NetworkClient::connect(ip_address)?;
     let message = network_client.request_message_and_await_response(message_type)?;
     Ok(message)
 }
-
 
 pub fn display_message(message_type: &MessageType, message: &ProtoMessage, output_path: Option<&Path>) -> () {
     log::info!("outputting message data");
@@ -103,7 +101,10 @@ pub fn display_message(message_type: &MessageType, message: &ProtoMessage, outpu
             }
         }
         None => {
-            println!("message data for \"{:#?}\" - received at {:?}", message_type, received_at);
+            println!(
+                "message data for \"{:#?}\" - received at {:?}",
+                message_type, received_at
+            );
             for line in output_string.split('\n') {
                 if !line.is_empty() {
                     println!("{}", line);
@@ -113,9 +114,11 @@ pub fn display_message(message_type: &MessageType, message: &ProtoMessage, outpu
     }
 }
 
-
 pub fn test_display_message(message_type: MessageType, output_path: Option<&Path>) {
-    log::info!("testing mode enabled - using mock data for message_type {:?}", message_type);
+    log::info!(
+        "testing mode enabled - using mock data for message_type {:?}",
+        message_type
+    );
 
     let mut msg = proto::Live::Live::new();
     msg.set_temperature_fahrenheit(102);

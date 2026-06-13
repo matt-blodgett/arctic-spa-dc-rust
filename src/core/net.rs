@@ -1,9 +1,8 @@
 #![allow(dead_code)]
 
-
+use std::io::{Error, ErrorKind, Read, Write};
 use std::net::TcpStream;
 use std::time::{Duration, SystemTime};
-use std::io::{Error, ErrorKind, Read, Write};
 
 use chrono::{DateTime, Utc};
 
@@ -11,14 +10,11 @@ use crate::proto;
 use protobuf::Message;
 use serde::{Deserialize, Serialize};
 
-
 const HEADER_SIZE: usize = 20;
 const HEADER_PREAMBLE: [u8; 4] = [171, 173, 29, 58];
 const HEADER_MAGIC: i32 = -1414718150;
 
-
-#[derive(Deserialize, Serialize)]
-#[derive(Copy, Clone, PartialEq, Eq, Hash, Debug)]
+#[derive(Deserialize, Serialize, Copy, Clone, PartialEq, Eq, Hash, Debug)]
 pub enum MessageType {
     Live = 0,
     Command = 1,
@@ -33,7 +29,7 @@ pub enum MessageType {
     Filter = 13,
     Peripheral = 16,
     OnzenLive = 48,
-    OnzenSettings = 50
+    OnzenSettings = 50,
 }
 
 impl From<MessageType> for u16 {
@@ -61,11 +57,10 @@ impl TryFrom<u16> for MessageType {
             16 => Ok(MessageType::Peripheral),
             48 => Ok(MessageType::OnzenLive),
             50 => Ok(MessageType::OnzenSettings),
-            _ => Err(Error::new(ErrorKind::InvalidData, "invalid message type"))
+            _ => Err(Error::new(ErrorKind::InvalidData, "invalid message type")),
         }
     }
 }
-
 
 #[derive(Debug)]
 struct Packet {
@@ -78,7 +73,7 @@ struct Packet {
     payload_size: u16,
     payload: Vec<u8>,
     packet_size: u16,
-    received_at: SystemTime
+    received_at: SystemTime,
 }
 
 impl Packet {
@@ -93,7 +88,7 @@ impl Packet {
             payload_size: 0,
             payload: vec![],
             packet_size: HEADER_SIZE as u16,
-            received_at: SystemTime::now()
+            received_at: SystemTime::now(),
         }
     }
 
@@ -103,7 +98,7 @@ impl Packet {
         log::trace!("serializing packet: message_type_value={:?}", message_type_value);
 
         self.preamble = HEADER_PREAMBLE;
-        let padding: u32 = 0;  // 4 bytes reserved for checksum after calculation
+        let padding: u32 = 0; // 4 bytes reserved for checksum after calculation
         self.counter = 0;
         self.unused = 0;
         self.message_type_value = message_type_value;
@@ -129,14 +124,22 @@ impl Packet {
         let checksum_bytes = checksum_value.to_be_bytes();
         self.checksum = checksum_bytes;
 
-        log::trace!("calculated checksum: value={:?}, bytes={:?}", checksum_value, checksum_bytes);
+        log::trace!(
+            "calculated checksum: value={:?}, bytes={:?}",
+            checksum_value,
+            checksum_bytes
+        );
 
         // Replace the padding field (bytes 4-8) with the checksum
         ret[4..8].copy_from_slice(&checksum_bytes);
 
         log::trace!("packet bytes: len={}, value={:?}", ret.len(), ret);
 
-        log::debug!("successfully serialized packet: message_type={:?}, payload_size={}", self.message_type, self.payload_size);
+        log::debug!(
+            "successfully serialized packet: message_type={:?}, payload_size={}",
+            self.message_type,
+            self.payload_size
+        );
         log::trace!("packet: {:?}", self);
 
         return ret;
@@ -146,20 +149,24 @@ impl Packet {
         log::trace!("deserializing packet: bytes_len={}", data.len());
 
         if data.len() < HEADER_SIZE {
-            return Err(
-                Error::new(
-                    ErrorKind::InvalidData,
-                    format!("invalid input data: expected {} bytes, got {} bytes", HEADER_SIZE, data.len())
-                )
-            );
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                format!(
+                    "invalid input data: expected {} bytes, got {} bytes",
+                    HEADER_SIZE,
+                    data.len()
+                ),
+            ));
         }
         if data.get(0..4) != HEADER_PREAMBLE.get(0..4) {
-            return Err(
-                Error::new(
-                    ErrorKind::InvalidData,
-                    format!("invalid preamble: expected {:?}, got {:?}", HEADER_PREAMBLE.get(0..4), data.get(0..4))
-                )
-            );
+            return Err(Error::new(
+                ErrorKind::InvalidData,
+                format!(
+                    "invalid preamble: expected {:?}, got {:?}",
+                    HEADER_PREAMBLE.get(0..4),
+                    data.get(0..4)
+                ),
+            ));
         }
 
         self.preamble.copy_from_slice(&data[0..4]);
@@ -171,33 +178,76 @@ impl Packet {
         self.message_type_value = u16::from_be_bytes([data[16], data[17]]);
         self.message_type = MessageType::try_from(self.message_type_value).ok();
         self.payload_size = u16::from_be_bytes([data[18], data[19]]);
-        self.payload.extend_from_slice(&data[HEADER_SIZE..HEADER_SIZE + self.payload_size as usize]);
+        self.payload
+            .extend_from_slice(&data[HEADER_SIZE..HEADER_SIZE + self.payload_size as usize]);
         self.packet_size = HEADER_SIZE as u16 + self.payload_size;
         self.received_at = SystemTime::now();
 
-        log::debug!("successfully deserialized packet: message_type={:?}, payload_size={}", self.message_type, self.payload_size);
+        log::debug!(
+            "successfully deserialized packet: message_type={:?}, payload_size={}",
+            self.message_type,
+            self.payload_size
+        );
         log::trace!("packet: {:?}", self);
 
         Ok(())
     }
 }
 
-
 #[derive(Debug)]
 pub enum ProtoMessage {
-    Live { message: proto::Live::Live, received_at: SystemTime },
-    Command { message: proto::Command::Command, received_at: SystemTime },
-    Settings { message: proto::Settings::Settings, received_at: SystemTime },
-    Configuration { message: proto::Configuration::Configuration, received_at: SystemTime },
-    Peak { message: proto::Peak::Peak, received_at: SystemTime },
-    Clock { message: proto::Clock::Clock, received_at: SystemTime },
-    Information { message: proto::Information::Information, received_at: SystemTime },
-    Error { message: proto::Error::Error, received_at: SystemTime },
-    Router { message: proto::Router::Router, received_at: SystemTime },
-    Filter { message: proto::Filter::Filter, received_at: SystemTime },
-    Peripheral { message: proto::Peripheral::Peripheral, received_at: SystemTime },
-    OnzenLive { message: proto::OnzenLive::OnzenLive, received_at: SystemTime },
-    OnzenSettings { message: proto::OnzenSettings::OnzenSettings, received_at: SystemTime }
+    Live {
+        message: proto::Live::Live,
+        received_at: SystemTime,
+    },
+    Command {
+        message: proto::Command::Command,
+        received_at: SystemTime,
+    },
+    Settings {
+        message: proto::Settings::Settings,
+        received_at: SystemTime,
+    },
+    Configuration {
+        message: proto::Configuration::Configuration,
+        received_at: SystemTime,
+    },
+    Peak {
+        message: proto::Peak::Peak,
+        received_at: SystemTime,
+    },
+    Clock {
+        message: proto::Clock::Clock,
+        received_at: SystemTime,
+    },
+    Information {
+        message: proto::Information::Information,
+        received_at: SystemTime,
+    },
+    Error {
+        message: proto::Error::Error,
+        received_at: SystemTime,
+    },
+    Router {
+        message: proto::Router::Router,
+        received_at: SystemTime,
+    },
+    Filter {
+        message: proto::Filter::Filter,
+        received_at: SystemTime,
+    },
+    Peripheral {
+        message: proto::Peripheral::Peripheral,
+        received_at: SystemTime,
+    },
+    OnzenLive {
+        message: proto::OnzenLive::OnzenLive,
+        received_at: SystemTime,
+    },
+    OnzenSettings {
+        message: proto::OnzenSettings::OnzenSettings,
+        received_at: SystemTime,
+    },
 }
 
 impl ProtoMessage {
@@ -342,40 +392,85 @@ impl ProtoMessage {
     }
 }
 
-
 impl TryFrom<&Packet> for ProtoMessage {
     type Error = Error;
 
     fn try_from(value: &Packet) -> Result<Self, Error> {
-        log::trace!("parsing packet payload to protobuf message: message_type_value={:?}, payload_size={}", value.message_type_value, value.payload_size);
+        log::trace!(
+            "parsing packet payload to protobuf message: message_type_value={:?}, payload_size={}",
+            value.message_type_value,
+            value.payload_size
+        );
 
-        let message_type = value.message_type
+        let message_type = value
+            .message_type
             .ok_or_else(|| Error::new(ErrorKind::InvalidData, "invalid message type in packet"))?;
 
         match message_type {
-            MessageType::Live => Ok(ProtoMessage::Live { message: proto::Live::Live::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
-            MessageType::Command => Ok(ProtoMessage::Command { message: proto::Command::Command::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
-            MessageType::Settings => Ok(ProtoMessage::Settings { message: proto::Settings::Settings::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
-            MessageType::Configuration => Ok(ProtoMessage::Configuration { message: proto::Configuration::Configuration::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
-            MessageType::Peak => Ok(ProtoMessage::Peak { message: proto::Peak::Peak::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
-            MessageType::Clock => Ok(ProtoMessage::Clock { message: proto::Clock::Clock::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
-            MessageType::Information => Ok(ProtoMessage::Information { message: proto::Information::Information::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
-            MessageType::Error => Ok(ProtoMessage::Error { message: proto::Error::Error::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
-            MessageType::Router => Ok(ProtoMessage::Router { message: proto::Router::Router::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
-            MessageType::Heartbeat => Err(Error::new(ErrorKind::Unsupported, "no corresponding proto for message type Heartbeat")),
-            MessageType::Filter => Ok(ProtoMessage::Filter { message: proto::Filter::Filter::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
-            MessageType::Peripheral => Ok(ProtoMessage::Peripheral { message: proto::Peripheral::Peripheral::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
-            MessageType::OnzenLive => Ok(ProtoMessage::OnzenLive { message: proto::OnzenLive::OnzenLive::parse_from_bytes(&value.payload)?, received_at: value.received_at }),
-            MessageType::OnzenSettings => Ok(ProtoMessage::OnzenSettings { message: proto::OnzenSettings::OnzenSettings::parse_from_bytes(&value.payload)?, received_at: value.received_at })
+            MessageType::Live => Ok(ProtoMessage::Live {
+                message: proto::Live::Live::parse_from_bytes(&value.payload)?,
+                received_at: value.received_at,
+            }),
+            MessageType::Command => Ok(ProtoMessage::Command {
+                message: proto::Command::Command::parse_from_bytes(&value.payload)?,
+                received_at: value.received_at,
+            }),
+            MessageType::Settings => Ok(ProtoMessage::Settings {
+                message: proto::Settings::Settings::parse_from_bytes(&value.payload)?,
+                received_at: value.received_at,
+            }),
+            MessageType::Configuration => Ok(ProtoMessage::Configuration {
+                message: proto::Configuration::Configuration::parse_from_bytes(&value.payload)?,
+                received_at: value.received_at,
+            }),
+            MessageType::Peak => Ok(ProtoMessage::Peak {
+                message: proto::Peak::Peak::parse_from_bytes(&value.payload)?,
+                received_at: value.received_at,
+            }),
+            MessageType::Clock => Ok(ProtoMessage::Clock {
+                message: proto::Clock::Clock::parse_from_bytes(&value.payload)?,
+                received_at: value.received_at,
+            }),
+            MessageType::Information => Ok(ProtoMessage::Information {
+                message: proto::Information::Information::parse_from_bytes(&value.payload)?,
+                received_at: value.received_at,
+            }),
+            MessageType::Error => Ok(ProtoMessage::Error {
+                message: proto::Error::Error::parse_from_bytes(&value.payload)?,
+                received_at: value.received_at,
+            }),
+            MessageType::Router => Ok(ProtoMessage::Router {
+                message: proto::Router::Router::parse_from_bytes(&value.payload)?,
+                received_at: value.received_at,
+            }),
+            MessageType::Heartbeat => Err(Error::new(
+                ErrorKind::Unsupported,
+                "no corresponding proto for message type Heartbeat",
+            )),
+            MessageType::Filter => Ok(ProtoMessage::Filter {
+                message: proto::Filter::Filter::parse_from_bytes(&value.payload)?,
+                received_at: value.received_at,
+            }),
+            MessageType::Peripheral => Ok(ProtoMessage::Peripheral {
+                message: proto::Peripheral::Peripheral::parse_from_bytes(&value.payload)?,
+                received_at: value.received_at,
+            }),
+            MessageType::OnzenLive => Ok(ProtoMessage::OnzenLive {
+                message: proto::OnzenLive::OnzenLive::parse_from_bytes(&value.payload)?,
+                received_at: value.received_at,
+            }),
+            MessageType::OnzenSettings => Ok(ProtoMessage::OnzenSettings {
+                message: proto::OnzenSettings::OnzenSettings::parse_from_bytes(&value.payload)?,
+                received_at: value.received_at,
+            }),
         }
     }
 }
 
-
 pub struct NetworkClient {
     host: String,
     port: &'static str,
-    tcp_stream: Option<TcpStream>
+    tcp_stream: Option<TcpStream>,
 }
 
 impl NetworkClient {
@@ -383,7 +478,7 @@ impl NetworkClient {
         Self {
             host: "".to_string(),
             port: "65534",
-            tcp_stream: None
+            tcp_stream: None,
         }
     }
 
@@ -414,7 +509,8 @@ impl NetworkClient {
     }
 
     fn get_stream_mut(&mut self) -> Result<&mut TcpStream, Error> {
-        self.tcp_stream.as_mut()
+        self.tcp_stream
+            .as_mut()
             .ok_or_else(|| Error::new(ErrorKind::NotConnected, "not connected"))
     }
 
@@ -428,7 +524,11 @@ impl NetworkClient {
     }
 
     fn write_packet(&mut self, message_type_value: u16, payload: Vec<u8>) -> Result<(), Error> {
-        log::debug!("writing packet: message_type_value={:?}, payload_size={:?}", message_type_value, payload.len());
+        log::debug!(
+            "writing packet: message_type_value={:?}, payload_size={:?}",
+            message_type_value,
+            payload.len()
+        );
         let stream = self.get_stream_mut()?;
 
         let mut packet = Packet::new();
@@ -438,7 +538,10 @@ impl NetworkClient {
 
         match MessageType::try_from(message_type_value) {
             Ok(message_type) => log::debug!("successfully wrote packet for message type {:?}", message_type),
-            Err(_) => log::debug!("successfully wrote packet for message type value {}", message_type_value),
+            Err(_) => log::debug!(
+                "successfully wrote packet for message type value {}",
+                message_type_value
+            ),
         };
 
         Ok(())
@@ -488,7 +591,7 @@ impl NetworkClient {
                     parsed_byte_count += packet.packet_size as u32;
                     ret.push(packet);
                     log::trace!("parsed {} / {} bytes", parsed_byte_count, total_bytes_read);
-                },
+                }
                 Err(e) => {
                     log::error!("error parsing packet: {}", e);
                     return Err(e);
@@ -516,7 +619,7 @@ impl NetworkClient {
                 ret.push(buf[i]);
             }
             if n < LEN_READ_BYTES {
-                break
+                break;
             }
         }
 

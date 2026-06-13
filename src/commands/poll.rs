@@ -1,17 +1,18 @@
 #![allow(dead_code)]
 
-
-use std::time::{Duration, Instant};
 use std::thread;
+use std::time::{Duration, Instant};
 
-use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use std::collections::HashMap;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
-use crate::core::db;
-use crate::core::net::{MessageType, NetworkClient};
 use crate::core::config::AppConfigManager;
 use crate::core::config::MessagePollingConfigs;
-
+use crate::core::db;
+use crate::core::net::{MessageType, NetworkClient};
 
 pub fn poll_device(ip_address: &str, config: &AppConfigManager) -> Result<(), Box<dyn std::error::Error>> {
     // ---------------------------------------------
@@ -22,7 +23,11 @@ pub fn poll_device(ip_address: &str, config: &AppConfigManager) -> Result<(), Bo
         .and_then(|v| v.as_u64())
         .unwrap_or_default();
 
-    log::info!("starting polling: ip_address={:}, max_duration={:}ms", ip_address, max_polling_duration_ms);
+    log::info!(
+        "starting polling: ip_address={:}, max_duration={:}ms",
+        ip_address,
+        max_polling_duration_ms
+    );
 
     let message_polling_config: MessagePollingConfigs = config
         .get_path_value("polling.messages")
@@ -31,20 +36,17 @@ pub fn poll_device(ip_address: &str, config: &AppConfigManager) -> Result<(), Bo
 
     // log::trace!("message polling config: {:?}", message_polling_config);
 
-    let (once_per_session_message_types, continuous_refesh_message_types):
-        (Vec<MessageType>, Vec<MessageType>) = message_polling_config
-        .iter()
-        .fold(
-            (Vec::new(), Vec::new()),
-            |mut acc, (message_type, polling_config)| {
+    let (once_per_session_message_types, continuous_refesh_message_types): (Vec<MessageType>, Vec<MessageType>) =
+        message_polling_config
+            .iter()
+            .fold((Vec::new(), Vec::new()), |mut acc, (message_type, polling_config)| {
                 if polling_config.once_per_session {
                     acc.0.push(*message_type);
                 } else {
                     acc.1.push(*message_type);
                 }
                 acc
-            },
-        );
+            });
 
     // log::debug!("message types: once per session: {:?}", once_per_session_message_types);
     // log::debug!("message types: continuous refresh: {:?}", continuous_refesh_message_types);
@@ -53,7 +55,9 @@ pub fn poll_device(ip_address: &str, config: &AppConfigManager) -> Result<(), Bo
 
     type MessageNextRefreshTimes = HashMap<MessageType, u128>;
     let mut polling_next_refresh: MessageNextRefreshTimes = HashMap::from_iter(
-        continuous_refesh_message_types.iter().map(|message_type| (*message_type, 0))
+        continuous_refesh_message_types
+            .iter()
+            .map(|message_type| (*message_type, 0)),
     );
 
     // ---------------------------------------------
@@ -85,12 +89,18 @@ pub fn poll_device(ip_address: &str, config: &AppConfigManager) -> Result<(), Bo
 
     let start_time = Instant::now();
 
-    log::debug!("requesting {} message types once for initial data sync", once_per_session_message_types.len());
+    log::debug!(
+        "requesting {} message types once for initial data sync",
+        once_per_session_message_types.len()
+    );
     for message_type in once_per_session_message_types {
         network_client.request_message(message_type)?;
     }
 
-    log::debug!("starting continuous polling {} message types", continuous_refesh_message_types.len());
+    log::debug!(
+        "starting continuous polling {} message types",
+        continuous_refesh_message_types.len()
+    );
 
     while running.load(Ordering::SeqCst) {
         let elapsed_time = start_time.elapsed().as_millis();
@@ -136,12 +146,16 @@ pub fn poll_device(ip_address: &str, config: &AppConfigManager) -> Result<(), Bo
                     log::debug!("received {} messages", received_messaged_count);
                 }
                 for message in messages {
-                    log::debug!("received message {:?} at {:?}", message.message_type(), message.received_at());
+                    log::debug!(
+                        "received message {:?} at {:?}",
+                        message.message_type(),
+                        message.received_at()
+                    );
                     if let Err(e) = db_client.insert_message(&message) {
                         log::error!("database io error: {:#?}", e);
                     }
                 }
-            },
+            }
             Err(e) => {
                 log::error!("network io error: {:#?}", e);
                 log::debug!("sleeping for 1000ms before retrying...");
@@ -156,7 +170,10 @@ pub fn poll_device(ip_address: &str, config: &AppConfigManager) -> Result<(), Bo
 
         let elapsed_time = start_time.elapsed().as_millis();
         if max_polling_duration_ms > 0 && elapsed_time > max_polling_duration_ms as u128 {
-            log::info!("reached max polling duration of {}ms, exiting polling loop", max_polling_duration_ms);
+            log::info!(
+                "reached max polling duration of {}ms, exiting polling loop",
+                max_polling_duration_ms
+            );
             break;
         }
     }

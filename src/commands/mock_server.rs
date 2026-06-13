@@ -1,15 +1,15 @@
+use std::collections::VecDeque;
 use std::io::{Error, ErrorKind, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
-use std::collections::VecDeque;
 
 use chrono::{DateTime, Datelike, Timelike, Utc};
-use std::time::{SystemTime, Duration};
+use std::time::{Duration, SystemTime};
 
 use protobuf::Message;
 
-use crate::proto;
 use crate::core::net::MessageType;
+use crate::proto;
 
 const HEADER_SIZE: usize = 20;
 const HEADER_PREAMBLE: [u8; 4] = [171, 173, 29, 58];
@@ -20,11 +20,9 @@ pub const DEFAULT_BIND_ADDRESS: &str = "127.0.0.1:65534";
 
 const READ_TIMEOUT_MS: u64 = 1_000;
 
-
 fn proto_error_to_io(error: protobuf::Error) -> Error {
     Error::new(ErrorKind::InvalidData, format!("protobuf io error: {}", error))
 }
-
 
 struct MockState {
     live: proto::Live::Live,
@@ -43,7 +41,6 @@ struct MockState {
 }
 
 impl MockState {
-
     fn default_message_clock() -> proto::Clock::Clock {
         let datetime: DateTime<Utc> = SystemTime::now().into();
 
@@ -347,44 +344,36 @@ impl MockState {
     fn apply_command(&mut self, command: &proto::Command::Command) -> Result<(), Error> {
         // log::debug!("applying command={:?}", command);
         if command.has_set_temperature_setpoint_fahrenheit() {
-            self.live.set_temperature_setpoint_fahrenheit(
-                command.set_temperature_setpoint_fahrenheit()
-            );
+            self.live
+                .set_temperature_setpoint_fahrenheit(command.set_temperature_setpoint_fahrenheit());
         }
         if command.has_set_pump_1() {
-            self.live.set_pump_1(
-                MockState::command_pump_to_live(command.set_pump_1())
-            );
+            self.live
+                .set_pump_1(MockState::command_pump_to_live(command.set_pump_1()));
         }
         if command.has_set_pump_2() {
-            self.live.set_pump_2(
-                MockState::command_pump_to_live(command.set_pump_2())
-            );
+            self.live
+                .set_pump_2(MockState::command_pump_to_live(command.set_pump_2()));
         }
         if command.has_set_pump_3() {
-            self.live.set_pump_3(
-                MockState::command_pump_to_live(command.set_pump_3())
-            );
+            self.live
+                .set_pump_3(MockState::command_pump_to_live(command.set_pump_3()));
         }
         if command.has_set_pump_4() {
-            self.live.set_pump_4(
-                MockState::command_pump_to_live(command.set_pump_4())
-            );
+            self.live
+                .set_pump_4(MockState::command_pump_to_live(command.set_pump_4()));
         }
         if command.has_set_pump_5() {
-            self.live.set_pump_5(
-                MockState::command_pump_to_live(command.set_pump_5())
-            );
+            self.live
+                .set_pump_5(MockState::command_pump_to_live(command.set_pump_5()));
         }
         if command.has_set_blower_1() {
-            self.live.set_blower_1(
-                MockState::command_pump_to_live(command.set_blower_1())
-            );
+            self.live
+                .set_blower_1(MockState::command_pump_to_live(command.set_blower_1()));
         }
         if command.has_set_blower_2() {
-            self.live.set_blower_2(
-                MockState::command_pump_to_live(command.set_blower_2())
-            );
+            self.live
+                .set_blower_2(MockState::command_pump_to_live(command.set_blower_2()));
         }
         if command.has_set_lights() {
             self.live.set_lights(command.set_lights());
@@ -393,31 +382,28 @@ impl MockState {
             self.live.set_stereo(command.set_stereo());
         }
         if command.has_set_filter() {
-            self.live.set_filter(
-                if command.set_filter() {
-                    proto::Live::live::FilterStatus::FILTER_FILTERING
-                } else {
-                    proto::Live::live::FilterStatus::FILTER_IDLE
-                }
-            );
+            self.live.set_filter(if command.set_filter() {
+                proto::Live::live::FilterStatus::FILTER_FILTERING
+            } else {
+                proto::Live::live::FilterStatus::FILTER_IDLE
+            });
         }
         if command.has_set_onzen() {
             self.live.set_onzen(command.set_onzen());
         }
         if command.has_set_ozone() {
-            self.live.set_ozone(
-                if command.set_ozone() {
-                    proto::Live::live::OzoneStatus::OZONE_ACTIVE
-                } else {
-                    proto::Live::live::OzoneStatus::OZONE_IDLE
-                }
-            );
+            self.live.set_ozone(if command.set_ozone() {
+                proto::Live::live::OzoneStatus::OZONE_ACTIVE
+            } else {
+                proto::Live::live::OzoneStatus::OZONE_IDLE
+            });
         }
         if command.has_set_exhaust_fan() {
             self.live.set_exhaust_fan(command.set_exhaust_fan());
         }
         if command.has_set_sauna_state() {
-            self.live.set_sauna(MockState::command_sauna_to_live(command.set_sauna_state()));
+            self.live
+                .set_sauna(MockState::command_sauna_to_live(command.set_sauna_state()));
         }
         if command.has_set_sauna_time_left() {
             self.live.set_sauna_time_remaining(command.set_sauna_time_left());
@@ -471,7 +457,6 @@ impl MockState {
     }
 }
 
-
 fn checksum_for_packet(data: &[u8]) -> [u8; 4] {
     const CRC32: crc::Crc<u32> = crc::Crc::<u32>::new(&crc::CRC_32_ISO_HDLC);
     CRC32.checksum(data).to_be_bytes()
@@ -498,7 +483,10 @@ fn read_packet(stream: &mut TcpStream) -> Result<(MessageType, Vec<u8>), Error> 
     stream.read_exact(&mut header)?;
 
     if header[0..4] != HEADER_PREAMBLE {
-        return Err(Error::new(ErrorKind::InvalidData, format!("invalid packet preamble: {:?}", &header[0..4])));
+        return Err(Error::new(
+            ErrorKind::InvalidData,
+            format!("invalid packet preamble: {:?}", &header[0..4]),
+        ));
     }
 
     let message_type_value = u16::from_be_bytes([header[16], header[17]]);
@@ -508,14 +496,23 @@ fn read_packet(stream: &mut TcpStream) -> Result<(MessageType, Vec<u8>), Error> 
     stream.read_exact(&mut payload)?;
 
     let message_type = MessageType::try_from(message_type_value)?;
-    log::debug!("received packet: message_type_value={:?}, message_type={:?}, payload_size={}", message_type_value, message_type, payload_size);
+    log::debug!(
+        "received packet: message_type_value={:?}, message_type={:?}, payload_size={}",
+        message_type_value,
+        message_type,
+        payload_size
+    );
     Ok((message_type, payload))
 }
 
 fn write_packet(stream: &mut TcpStream, message_type: MessageType, payload: Vec<u8>) -> Result<(), Error> {
     let bytes = packet_bytes(message_type, payload);
     stream.write_all(&bytes)?;
-    log::debug!("sent packet: message_type={:?}, payload_size={}", message_type, bytes.len() - HEADER_SIZE);
+    log::debug!(
+        "sent packet: message_type={:?}, payload_size={}",
+        message_type,
+        bytes.len() - HEADER_SIZE
+    );
     Ok(())
 }
 
@@ -540,20 +537,15 @@ fn handle_client(mut stream: TcpStream, state: Arc<Mutex<MockState>>) -> Result<
         };
 
         if message_type == MessageType::Command && !payload.is_empty() {
-            let command = proto::Command::Command::parse_from_bytes(&payload)
-                .map_err(proto_error_to_io)?;
-            let mut guard = state
-                .lock()
-                .map_err(|_| Error::other("failed to lock mock state"))?;
+            let command = proto::Command::Command::parse_from_bytes(&payload).map_err(proto_error_to_io)?;
+            let mut guard = state.lock().map_err(|_| Error::other("failed to lock mock state"))?;
             guard.apply_command(&command)?;
             continue;
         }
 
         if payload.is_empty() {
             let responses_to_send = {
-                let mut guard = state
-                    .lock()
-                    .map_err(|_| Error::other("failed to lock mock state"))?;
+                let mut guard = state.lock().map_err(|_| Error::other("failed to lock mock state"))?;
 
                 // dequeue all queued responses first
                 let mut responses = Vec::new();
@@ -583,7 +575,11 @@ fn handle_client(mut stream: TcpStream, state: Arc<Mutex<MockState>>) -> Result<
             continue;
         }
 
-        log::debug!("ignoring unsupported packet: message_type={:?}, payload_size={}", message_type, payload.len());
+        log::debug!(
+            "ignoring unsupported packet: message_type={:?}, payload_size={}",
+            message_type,
+            payload.len()
+        );
     }
 }
 
