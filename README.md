@@ -6,24 +6,6 @@ Display connected devices, query device information, get/set device properties, 
 
 This is a Rust rewrite of the Python package [arctic-spa-dc](https://github.com/matt-blodgett/arctic-spa-dc).
 
-## Development
-
-### Formatting
-
-This project is configured to use:
-- `rustfmt` for Rust files (default and most common formatter for Rust projects)
-- `taplo` via the VS Code TOML extension for TOML files
-
-#### Commands
-
-```bash
-# format all Rust source files
-cargo fmt --all
-
-# check formatting in CI or pre-commit
-cargo fmt --all -- --check
-```
-
 ## Installation
 
 Build the project with Cargo:
@@ -234,6 +216,23 @@ asdc device list --log-level trace
 
 # start continuously recording data from our hot tub
 asdc poll
+```
+
+## Development
+
+### Formatting
+
+This project is configured to use:
+- `rustfmt` for Rust files (default and most common formatter for Rust projects)
+
+#### Commands
+
+```bash
+# format all Rust source files
+cargo fmt --all
+
+# check formatting in CI or pre-commit
+cargo fmt --all -- --check
 ```
 
 ## Disclaimer
