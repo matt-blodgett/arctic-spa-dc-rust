@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::commands::mock_server;
-use crate::core::logging::{DEFAULT_LOGGING_LEVEL, LogLevel};
+use crate::core::logging;
 use crate::core::net::MessageType;
 use crate::core::utils::{default_config_path, initialize_path};
 
@@ -146,12 +146,12 @@ impl PollingConfig {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LoggingConfig {
     #[serde(default = "LoggingConfig::default_level")]
-    pub level: LogLevel,
+    pub level: logging::LogLevel,
 }
 
 impl LoggingConfig {
-    fn default_level() -> LogLevel {
-        DEFAULT_LOGGING_LEVEL
+    fn default_level() -> logging::LogLevel {
+        logging::DEFAULT_LOGGING_LEVEL
     }
 
     pub fn default() -> Self {
