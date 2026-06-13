@@ -30,8 +30,8 @@ struct Cli {
     log_level: Option<core::logging::LogLevel>,
 
     /// Optional file path to append log output to; if omitted, logs are written to stderr
-    #[arg(long, value_name = "LOG_FILE_PATH", global = true)]
-    log_file_path: Option<PathBuf>,
+    #[arg(long, value_name = "FILE_PATH", global = true)]
+    log_path: Option<PathBuf>,
 
     /// Mock server mode (connect to local running mock server for testing)
     #[arg(long, global = true)]
@@ -201,7 +201,7 @@ fn main() {
         .log_level
         .or(config_log_level)
         .unwrap_or(core::logging::DEFAULT_LOGGING_LEVEL);
-    let log_path = cli.log_file_path.or(config_log_path);
+    let log_path = cli.log_path.or(config_log_path);
 
     core::logging::init_logging(log_level, log_path.as_deref()).unwrap_or_else(|e| {
         fatal_error_and_exit(&format!("failed to initialize logging: {}", e));
