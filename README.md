@@ -164,7 +164,7 @@ asdc config list
 asdc config reset
 ```
 
-### StartMockServer
+### MockServer
 
 Run a mock TCP server that simulates sending and receiving the same requests and responses that an actual hot tub would.
 This is great for prototyping or sandboxing without worrying about damage to your actual hot tub.
@@ -183,6 +183,16 @@ asdc config set mock-server-ip-address "127.0.0.2"
 
 # this will now try to connect to the locally running mock server @ "127.0.0.2"
 asdc query live
+```
+
+### Reset
+
+Delete all known database files and log files and reset the config file to its default values.
+
+**Examples:**
+```bash
+# nuke everything and start from scratch
+asdc reset --force
 ```
 
 ## Example Workflow

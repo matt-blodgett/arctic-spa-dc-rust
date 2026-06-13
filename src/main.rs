@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::io::{self, Write};
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
@@ -34,7 +35,7 @@ struct Cli {
 
     /// Mock server mode (connect to local running mock server for testing)
     #[arg(long, global = true)]
-    mock_server_mode: bool,
+    mock_server: bool,
 
     #[command(subcommand)]
     command: Commands,
@@ -79,10 +80,16 @@ enum Commands {
         command: ConfigCommands,
     },
     /// Run a local mock TCP server for staging (request/response emulation)
-    StartMockServer {
+    MockServer {
         /// Bind address for the mock server
         #[arg(long, value_name = "BIND_HOST")]
         ip_address: Option<String>,
+    },
+    /// Reset all application data - overwrite config file with default values, delete current database files, log files, etc.
+    Reset {
+        /// Do not prompt for confirmation before resetting app data; use with caution
+        #[arg(long)]
+        force: bool,
     },
 }
 
@@ -140,6 +147,20 @@ fn assert_ip_address(ip_address: &str) {
     }
 }
 
+fn confirm_action(prompt: &str) -> bool {
+    print!("{} [y/N]: ", prompt);
+    io::stdout().flush().unwrap_or_else(|e| {
+        fatal_error_and_exit(&format!("failed to flush stdout for confirmation prompt: {}", e));
+    });
+
+    let mut input = String::new();
+    io::stdin().read_line(&mut input).unwrap_or_else(|e| {
+        fatal_error_and_exit(&format!("failed to read confirmation input: {}", e));
+    });
+
+    matches!(input.trim().to_ascii_lowercase().as_str(), "y" | "yes")
+}
+
 fn main() {
     let cli = Cli::parse();
 
@@ -161,7 +182,7 @@ fn main() {
     let mut is_mock_server_instance = false;
     let mut config_path_logging_level = "logging.level";
     let mut config_path_logging_path = "logging.path";
-    if let Commands::StartMockServer { .. } = &cli.command {
+    if let Commands::MockServer { .. } = &cli.command {
         is_mock_server_instance = true;
         config_path_logging_level = "mock_server.logging.level";
         config_path_logging_path = "mock_server.logging.path";
@@ -203,7 +224,7 @@ fn main() {
         .get_path_value("ip_address")
         .and_then(|value| serde_json::from_value::<String>(value).ok())
         .unwrap_or_default();
-    let cli_mock_server_mode = cli.mock_server_mode;
+    let cli_mock_server = cli.mock_server;
     let config_mock_server_enabled = config
         .get_path_value("mock_server.enabled")
         .and_then(|value| value.as_bool())
@@ -212,7 +233,7 @@ fn main() {
         .get_path_value("mock_server.ip_address")
         .and_then(|value| serde_json::from_value::<String>(value).ok())
         .unwrap_or_default();
-    let mock_server_mode = cli_mock_server_mode || config_mock_server_enabled;
+    let mock_server_mode = cli_mock_server || config_mock_server_enabled;
 
     // ensure any ip provided in cli args take precendence
     let ip_address = if cli_ip_address.is_some() {
@@ -366,13 +387,18 @@ fn main() {
                 println!("{}", config_json_string);
             }
             ConfigCommands::Reset {} => {
+                if !confirm_action("Are you sure you want to reset config values to defaults?") {
+                    println!("cancelled config reset");
+                    return;
+                }
+
                 config.reset_to_defaults().unwrap_or_else(|e| {
                     fatal_error_and_exit(&format!("failed to reset config: {:?}", e));
                 });
                 println!("config reset to default values");
             }
         },
-        Commands::StartMockServer { ip_address } => {
+        Commands::MockServer { ip_address } => {
             let host = if ip_address.is_some() {
                 ip_address.clone().unwrap()
             } else if !config_mock_server_ip_address.is_empty() {
@@ -387,6 +413,16 @@ fn main() {
 
             commands::mock_server::run(&bind_address).unwrap_or_else(|e| {
                 fatal_error_and_exit(&format!("mock server failed: {:#?}", e));
+            });
+        }
+        Commands::Reset { force } => {
+            if !force && !confirm_action("Are you sure you want to reset all app data (configs, logs, databases)?") {
+                println!("cancelled reset");
+                return;
+            }
+
+            commands::reset::reset_all(&mut config).unwrap_or_else(|e| {
+                fatal_error_and_exit(&format!("failed to reset app state: {:?}", e));
             });
         }
     }
