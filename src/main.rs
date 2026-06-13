@@ -367,7 +367,7 @@ fn main() {
         Commands::Config { command } => match command {
             ConfigCommands::Get { property_path } => {
                 let value = config.get_path_value(property_path).unwrap_or_else(|| {
-                    fatal_error_and_exit(&format!("failed to get config value for path '{}'", property_path));
+                    fatal_error_and_exit(&format!("no config value found for path {:?}", property_path));
                 });
                 println!("got config value -> {:?} = {:?}", property_path, value);
             }
@@ -375,7 +375,7 @@ fn main() {
                 config
                     .set_path_value(property_path, value.clone().into())
                     .unwrap_or_else(|e| {
-                        fatal_error_and_exit(&format!("failed to set config: {:?}", e));
+                        fatal_error_and_exit(&format!("failed to set config {:?}: {:?}", property_path, e));
                     });
                 println!("set config value -> {:?} = {:?}", property_path, value);
             }

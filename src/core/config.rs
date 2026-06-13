@@ -204,17 +204,19 @@ pub struct AppConfigManager {
 
 impl AppConfigManager {
     fn value_as_u64(path: &str, value: &Value) -> Result<u64, Box<dyn std::error::Error>> {
-        value
-            .as_u64()
-            .ok_or_else(|| format!("config value for '{}' must be an unsigned integer", path).into())
+        value.as_u64().ok_or_else(|| {
+            format!(
+                "config value for '{}' must be an unsigned integer. Use 0 for infinite duration",
+                path
+            )
+            .into()
+        })
     }
 
     fn validate_path_value(path: &str, value: &Value) -> Result<(), Box<dyn std::error::Error>> {
         match path {
-            "logging.level" => {
-                let level = value
-                    .as_str()
-                    .ok_or_else(|| "config value for 'logging.level' must be a string".to_string())?;
+            "logging.level" | "mock_server.logging.level" => {
+                let level = value.as_str().ok_or_else(|| "invalid log level".to_string())?;
                 level.parse::<logging::LogLevel>().map_err(|_| {
                     format!(
                         "invalid log level '{}'; valid values: off, error, warn, info, debug, trace",
@@ -222,21 +224,19 @@ impl AppConfigManager {
                     )
                 })?;
             }
-            "logging.path" => {
+            "logging.path" | "mock_server.logging.path" => {
                 if !value.is_null() {
                     let path = value
                         .as_str()
-                        .ok_or_else(|| "config value for 'logging.path' must be a string or null".to_string())?;
+                        .ok_or_else(|| "invalid logging output file path".to_string())?;
 
                     if path.trim().is_empty() {
-                        return Err("logging.path cannot be empty".into());
+                        return Err("invalid logging output file path".into());
                     }
                 }
             }
-            "ip_address" => {
-                let ip_value = value
-                    .as_str()
-                    .ok_or_else(|| "config value for 'ip_address' must be a string".to_string())?;
+            "ip_address" | "mock_server.ip_address" => {
+                let ip_value = value.as_str().ok_or_else(|| value.to_string())?;
 
                 if !ip_value.trim().is_empty() {
                     ip_value.parse::<IpAddr>().map_err(|_| {
@@ -247,14 +247,16 @@ impl AppConfigManager {
             "polling.max_duration_ms" => {
                 let duration_ms = Self::value_as_u64(path, value)?;
                 if duration_ms > 86_400_000 {
-                    return Err("polling.max_duration_ms must be between 0 and 86400000 (24 hours)".into());
+                    return Err(
+                        "polling.max_duration_ms must be between 0 (infinite) and 86400000ms (24 hours)".into(),
+                    );
                 }
             }
             _ if path.starts_with("polling.messages.") && path.ends_with(".refresh_interval_ms") => {
                 let refresh_interval_ms = Self::value_as_u64(path, value)?;
-                if refresh_interval_ms != 0 && !(250..=3_600_000).contains(&refresh_interval_ms) {
+                if refresh_interval_ms != 0 && !(250..=86_400_000).contains(&refresh_interval_ms) {
                     return Err(
-                        "polling message refresh_interval_ms must be 0 (disabled) or between 250 and 3600000".into(),
+                        "polling message refresh_interval_ms must be 0 (disabled) or between 250ms and 86400000ms (24 hours)".into(),
                     );
                 }
             }
@@ -264,7 +266,6 @@ impl AppConfigManager {
         Ok(())
     }
 
-    // TODO: ADD LOGGING
     pub fn get_path_value(&self, path: &str) -> Option<serde_json::Value> {
         let json = serde_json::to_value(&self.data).ok()?;
         let value = path.split('.').fold(Some(json), |node, key| node?.get(key).cloned());
