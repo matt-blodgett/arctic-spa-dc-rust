@@ -1,24 +1,16 @@
 #![allow(dead_code)]
 
 
-use std::net;
-use std::ops::Add;
-use std::time::{Instant, SystemTime};
+use std::time::{Duration, Instant};
+use std::thread;
 
-use std::{thread, time::Duration};
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize, de};
-use protobuf::Enum;
-
-use crate::commands::poll;
-use crate::proto;
 use crate::core::db;
-use crate::core::net::{MessageType, ProtoMessage, NetworkClient};
+use crate::core::net::{MessageType, NetworkClient};
 use crate::core::config::AppConfigManager;
 use crate::core::config::MessagePollingConfigs;
-
 
 
 pub fn poll_device(ip_address: &str, config: &AppConfigManager) -> Result<(), Box<dyn std::error::Error>> {
@@ -39,7 +31,7 @@ pub fn poll_device(ip_address: &str, config: &AppConfigManager) -> Result<(), Bo
 
     // log::trace!("message polling config: {:?}", message_polling_config);
 
-    let (once_per_session_message_types, constant_refresh_message_types):
+    let (once_per_session_message_types, continuous_refesh_message_types):
         (Vec<MessageType>, Vec<MessageType>) = message_polling_config
         .iter()
         .fold(
@@ -55,13 +47,13 @@ pub fn poll_device(ip_address: &str, config: &AppConfigManager) -> Result<(), Bo
         );
 
     // log::debug!("message types: once per session: {:?}", once_per_session_message_types);
-    // log::debug!("message types: constant refresh: {:?}", constant_refresh_message_types);
+    // log::debug!("message types: continuous refresh: {:?}", continuous_refesh_message_types);
 
     // ---------------------------------------------
 
     type MessageNextRefreshTimes = HashMap<MessageType, u128>;
     let mut polling_next_refresh: MessageNextRefreshTimes = HashMap::from_iter(
-        constant_refresh_message_types.iter().map(|message_type| (*message_type, 0))
+        continuous_refesh_message_types.iter().map(|message_type| (*message_type, 0))
     );
 
     // ---------------------------------------------
@@ -98,12 +90,12 @@ pub fn poll_device(ip_address: &str, config: &AppConfigManager) -> Result<(), Bo
         network_client.request_message(message_type)?;
     }
 
-    log::debug!("starting continuous polling {} message types", constant_refresh_message_types.len());
+    log::debug!("starting continuous polling {} message types", continuous_refesh_message_types.len());
 
     while running.load(Ordering::SeqCst) {
         let elapsed_time = start_time.elapsed().as_millis();
 
-        for message_type in constant_refresh_message_types.iter() {
+        for message_type in continuous_refesh_message_types.iter() {
             let next_refresh_time = *polling_next_refresh.get(message_type).unwrap_or(&0);
             let refresh_interval_ms = message_polling_config
                 .get(message_type)
@@ -117,11 +109,17 @@ pub fn poll_device(ip_address: &str, config: &AppConfigManager) -> Result<(), Bo
                 polling_next_refresh.insert(*message_type, next_due_time);
 
                 log::trace!(
-                    "scheduled next refresh: message_type={:?}, next_refresh_time={}ms, refresh_interval_ms={}ms, elapsed_time={}ms",
+                    "\
+                    scheduled next refresh: \
+                    message_type={:?}, \
+                    elapsed_time={}ms \
+                    refresh_interval_ms={}ms, \
+                    next_refresh_time={}ms, \
+                    ",
                     message_type,
-                    next_due_time,
+                    elapsed_time,
                     refresh_interval_ms,
-                    elapsed_time
+                    next_due_time
                 );
             }
         }
@@ -157,7 +155,6 @@ pub fn poll_device(ip_address: &str, config: &AppConfigManager) -> Result<(), Bo
         }
 
         let elapsed_time = start_time.elapsed().as_millis();
-
         if max_polling_duration_ms > 0 && elapsed_time > max_polling_duration_ms as u128 {
             log::info!("reached max polling duration of {}ms, exiting polling loop", max_polling_duration_ms);
             break;

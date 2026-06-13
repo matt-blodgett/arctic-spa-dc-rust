@@ -1,22 +1,17 @@
 #![allow(dead_code)]
-#![allow(unused_imports)]
 
 
 use std::path::PathBuf;
 
-use clap::builder::Str;
 use clap::{Parser, Subcommand};
 
 mod proto;
 mod core;
 mod commands;
 
-
-use commands::device::{DevicePropertyNameGet, DevicePropertyNameSet};
 use commands::query::QueryMessageName;
+use commands::device::{DevicePropertyNameGet, DevicePropertyNameSet};
 
-use crate::commands::mock_server;
-use crate::core::logging::DEFAULT_LOGGING_LEVEL;
 
 
 #[derive(Parser)]
@@ -216,7 +211,7 @@ fn main () {
     };
     // ultimate fallback
     if ip_address.is_empty() {
-        ip_address = mock_server::DEFAULT_HOST.to_string();
+        ip_address = commands::mock_server::DEFAULT_HOST.to_string();
     }
 
     if mock_server_mode {
@@ -357,10 +352,10 @@ fn main () {
             } else if !config_mock_server_ip_address.is_empty() {
                 config_mock_server_ip_address.clone()
             } else {
-                mock_server::DEFAULT_HOST.to_string()
+                commands::mock_server::DEFAULT_HOST.to_string()
             };
 
-            let bind_address = format!("{}:{}", host, mock_server::DEFAULT_PORT);
+            let bind_address = format!("{}:{}", host, commands::mock_server::DEFAULT_PORT);
 
             log::debug!("starting mock server: bind_address={:}", bind_address);
 

@@ -1,5 +1,4 @@
 #![allow(dead_code)]
-#![allow(unused_imports)]
 
 
 use std::net::TcpStream;
@@ -10,7 +9,7 @@ use chrono::{DateTime, Utc};
 
 use crate::proto;
 use protobuf::Message;
-use serde::{Deserialize, Serialize, de};
+use serde::{Deserialize, Serialize};
 
 
 const HEADER_SIZE: usize = 20;

@@ -1,25 +1,17 @@
 #![allow(dead_code)]
-#![allow(unused_imports)]
 
 
 use std::fs;
-use std::hash::Hash;
 use std::path::PathBuf;
-
-use clap::builder::Str;
-use protobuf::Message;
-use serde_json::Value;
-use serde::{Deserialize, Serialize, de};
-
-use crate::core::utils::{default_config_path, initialize_path};
-
-// use crate::commands::config::ConfigPropertyName;
 use std::collections::HashMap;
-use std::time::SystemTime;
+
+use serde_json::Value;
+use serde::{Deserialize, Serialize};
 
 use crate::commands::mock_server;
 use crate::core::net::MessageType;
-use crate::core::logging::{self, LogLevel};
+use crate::core::logging::{LogLevel, DEFAULT_LOGGING_LEVEL};
+use crate::core::utils::{default_config_path, initialize_path};
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -121,11 +113,11 @@ impl PollingConfig {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LoggingConfig {
     #[serde(default = "LoggingConfig::default_level")]
-    pub level: logging::LogLevel,
+    pub level: LogLevel,
 }
 
 impl LoggingConfig {
-    fn default_level() -> logging::LogLevel { logging::DEFAULT_LOGGING_LEVEL }
+    fn default_level() -> LogLevel { DEFAULT_LOGGING_LEVEL }
 
     pub fn default() -> Self {
         Self {
