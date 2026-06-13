@@ -117,6 +117,9 @@ Request protobuf messages from the device. Returns information about device stat
 ```bash
 # query the OnzenLive protobuf message from the host ip with full logging output
 asdc query onzen-live --ip-address "192.168.0.1" --log-level trace
+
+# append logs to a file for this run
+asdc query live --log-file-path "./logs/asdc.log"
 ```
 
 ### Poll
@@ -147,6 +150,9 @@ Properties are set using Json paths
 ```bash
 # set global logging default output to debug level
 asdc config set logging.level debug
+
+# persist logging output to a file path (used when --log-file-path is not provided)
+asdc config set logging.file_path "./logs/asdc.log"
 
 # turn on mock_server mode if running mock server in another terminal
 asdc config set mock_server.enabled true

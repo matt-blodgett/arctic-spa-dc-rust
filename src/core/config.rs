@@ -2,6 +2,7 @@
 
 use std::collections::HashMap;
 use std::fs;
+use std::net::IpAddr;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -10,24 +11,24 @@ use serde_json::Value;
 use crate::commands::mock_server;
 use crate::core::logging;
 use crate::core::net::MessageType;
-use crate::core::utils::{default_config_path, initialize_path};
+use crate::core::utils::{default_config_path, default_database_path, initialize_path};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MockServerConfig {
-    #[serde(default = "MockServerConfig::default_mock_server_ip_address")]
+    #[serde(default = "MockServerConfig::cfg_default_mock_server_ip_address")]
     pub ip_address: String,
     #[serde(default)]
     pub enabled: bool,
 }
 
 impl MockServerConfig {
-    fn default_mock_server_ip_address() -> String {
+    fn cfg_default_mock_server_ip_address() -> String {
         String::from(mock_server::DEFAULT_HOST)
     }
 
     pub fn default() -> Self {
         Self {
-            ip_address: Self::default_mock_server_ip_address(),
+            ip_address: Self::cfg_default_mock_server_ip_address(),
             enabled: false,
         }
     }
@@ -43,11 +44,16 @@ pub type MessagePollingConfigs = HashMap<MessageType, MessagePollingConfig>;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PollingConfig {
-    pub messages: MessagePollingConfigs,
     pub max_duration_ms: u64,
+    pub database_path: Option<PathBuf>,
+    pub messages: MessagePollingConfigs,
 }
 
 impl PollingConfig {
+    fn cfg_default_database_path() -> Option<PathBuf> {
+        Some(default_database_path())
+    }
+
     pub fn default() -> Self {
         let messages = MessagePollingConfigs::from([
             (
@@ -137,26 +143,30 @@ impl PollingConfig {
         ]);
 
         Self {
-            messages,
             max_duration_ms: 0,
+            database_path: Self::cfg_default_database_path(),
+            messages,
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct LoggingConfig {
-    #[serde(default = "LoggingConfig::default_level")]
+    #[serde(default = "LoggingConfig::cfg_default_level")]
     pub level: logging::LogLevel,
+    #[serde(default)]
+    pub file_path: Option<PathBuf>,
 }
 
 impl LoggingConfig {
-    fn default_level() -> logging::LogLevel {
+    fn cfg_default_level() -> logging::LogLevel {
         logging::DEFAULT_LOGGING_LEVEL
     }
 
     pub fn default() -> Self {
         Self {
-            level: Self::default_level(),
+            level: Self::cfg_default_level(),
+            file_path: None,
         }
     }
 }
@@ -171,13 +181,13 @@ pub struct AppConfig {
 }
 
 impl AppConfig {
-    fn default_ip_address() -> String {
+    fn cfg_default_ip_address() -> String {
         String::from("")
     }
 
     pub fn default() -> Self {
         Self {
-            ip_address: Self::default_ip_address(),
+            ip_address: Self::cfg_default_ip_address(),
             logging: LoggingConfig::default(),
             polling: PollingConfig::default(),
             mock_server: MockServerConfig::default(),
@@ -191,6 +201,67 @@ pub struct AppConfigManager {
 }
 
 impl AppConfigManager {
+    fn value_as_u64(path: &str, value: &Value) -> Result<u64, Box<dyn std::error::Error>> {
+        value
+            .as_u64()
+            .ok_or_else(|| format!("config value for '{}' must be an unsigned integer", path).into())
+    }
+
+    fn validate_path_value(path: &str, value: &Value) -> Result<(), Box<dyn std::error::Error>> {
+        match path {
+            "logging.level" => {
+                let level = value
+                    .as_str()
+                    .ok_or_else(|| "config value for 'logging.level' must be a string".to_string())?;
+                level.parse::<logging::LogLevel>().map_err(|_| {
+                    format!(
+                        "invalid log level '{}'; valid values: off, error, warn, info, debug, trace",
+                        level
+                    )
+                })?;
+            }
+            "logging.file_path" => {
+                if !value.is_null() {
+                    let path = value
+                        .as_str()
+                        .ok_or_else(|| "config value for 'logging.file_path' must be a string or null".to_string())?;
+
+                    if path.trim().is_empty() {
+                        return Err("logging.file_path cannot be empty".into());
+                    }
+                }
+            }
+            "ip_address" => {
+                let ip_value = value
+                    .as_str()
+                    .ok_or_else(|| "config value for 'ip_address' must be a string".to_string())?;
+
+                if !ip_value.trim().is_empty() {
+                    ip_value.parse::<IpAddr>().map_err(|_| {
+                        format!("invalid ip address '{}'; expected a valid IPv4/IPv6 address", ip_value)
+                    })?;
+                }
+            }
+            "polling.max_duration_ms" => {
+                let duration_ms = Self::value_as_u64(path, value)?;
+                if duration_ms > 86_400_000 {
+                    return Err("polling.max_duration_ms must be between 0 and 86400000 (24 hours)".into());
+                }
+            }
+            _ if path.starts_with("polling.messages.") && path.ends_with(".refresh_interval_ms") => {
+                let refresh_interval_ms = Self::value_as_u64(path, value)?;
+                if refresh_interval_ms != 0 && !(250..=3_600_000).contains(&refresh_interval_ms) {
+                    return Err(
+                        "polling message refresh_interval_ms must be 0 (disabled) or between 250 and 3600000".into(),
+                    );
+                }
+            }
+            _ => {}
+        }
+
+        Ok(())
+    }
+
     // TODO: ADD LOGGING
     pub fn get_path_value(&self, path: &str) -> Option<serde_json::Value> {
         let json = serde_json::to_value(&self.data).ok()?;
@@ -240,6 +311,8 @@ impl AppConfigManager {
         } else {
             value
         };
+
+        Self::validate_path_value(path, &coerced_value)?;
 
         let old_value = json
             .pointer_mut(&pointer_path)

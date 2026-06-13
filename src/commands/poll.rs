@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::path::PathBuf;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -18,6 +19,7 @@ pub fn poll_device(
     ip_address: &str,
     config: &AppConfigManager,
     reset_database: bool,
+    database_path: Option<&PathBuf>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // ---------------------------------------------
     // polling configuration setup
@@ -71,7 +73,7 @@ pub fn poll_device(
     let mut network_client = NetworkClient::connect(ip_address)?;
 
     log::info!("initializing database");
-    let mut db_client = db::DatabaseClient::open(None, reset_database)?;
+    let mut db_client = db::DatabaseClient::open(database_path, reset_database)?;
     db_client.create_connection_session(ip_address)?;
 
     // ---------------------------------------------
@@ -150,11 +152,7 @@ pub fn poll_device(
                     log::debug!("received {} messages", received_messaged_count);
                 }
                 for message in messages {
-                    log::debug!(
-                        "received message {:?} at {:?}",
-                        message.message_type(),
-                        message.received_at()
-                    );
+                    log::debug!("received message {:?}", message.message_type());
                     if let Err(e) = db_client.insert_message(&message) {
                         log::error!("database io error: {:#?}", e);
                     }

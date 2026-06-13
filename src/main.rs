@@ -28,6 +28,10 @@ struct Cli {
     #[arg(short = 'l', long, value_name = "LOG_LEVEL", global = true)]
     log_level: Option<core::logging::LogLevel>,
 
+    /// Optional file path to append log output to; if omitted, logs are written to stderr
+    #[arg(long, value_name = "LOG_FILE_PATH", global = true)]
+    log_file_path: Option<PathBuf>,
+
     /// Mock server mode (connect to local running mock server for testing)
     #[arg(long, global = true)]
     mock_server_mode: bool,
@@ -64,6 +68,10 @@ enum Commands {
         /// Overwrite the existing database file (deleting existing data)
         #[arg(long)]
         reset_database: bool,
+
+        /// Write to a non-default database file instead of the default location; if the file does not exist, it will be created
+        #[arg(long, value_name = "DATABASE_FILE_PATH")]
+        database_path: Option<PathBuf>,
     },
     /// Store and retrieve this application's settings
     Config {
@@ -137,17 +145,6 @@ fn main() {
 
     // ---------------------------------------------
 
-    let mut logging_initialized = false;
-
-    // check cli args for log_level (takes precedence over config file / env vars)
-    if let Some(log_level) = cli.log_level {
-        core::logging::init_logging(log_level);
-        logging_initialized = true;
-        log::debug!("logging initialized: level={}", log::max_level());
-    }
-
-    log::info!("initializing config");
-
     // check if config file location is specified explicitly in cli args
     let mut config = if let Some(path) = cli.config_path.as_ref() {
         log::debug!("config_path: {}", path.display());
@@ -160,15 +157,32 @@ fn main() {
         })
     };
 
-    // if cli arg for log_level is not present, logging is not initialized - check config file or use default value
-    if !logging_initialized {
-        let log_level = config
-            .get_path_value("logging.level")
-            .and_then(|value| serde_json::from_value::<core::logging::LogLevel>(value).ok())
-            .unwrap_or(core::logging::DEFAULT_LOGGING_LEVEL);
-        core::logging::init_logging(log_level);
-        log::debug!("logging initialized: level={}", log::max_level());
-    }
+    let config_log_level = config
+        .get_path_value("logging.level")
+        .and_then(|value| serde_json::from_value::<core::logging::LogLevel>(value).ok());
+    let config_log_file_path = config
+        .get_path_value("logging.file_path")
+        .and_then(|value| serde_json::from_value::<Option<PathBuf>>(value).ok())
+        .flatten();
+
+    // cli args take precedence over config values
+    let log_level = cli
+        .log_level
+        .or(config_log_level)
+        .unwrap_or(core::logging::DEFAULT_LOGGING_LEVEL);
+    let log_file_path = cli.log_file_path.or(config_log_file_path);
+
+    core::logging::init_logging(log_level, log_file_path.as_deref()).unwrap_or_else(|e| {
+        fatal_error_and_exit(&format!("failed to initialize logging: {}", e));
+    });
+    log::debug!(
+        "logging initialized: level={}, file_path={}",
+        log::max_level(),
+        log_file_path
+            .as_ref()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "stderr".to_string())
+    );
 
     // ---------------------------------------------
 
@@ -210,12 +224,12 @@ fn main() {
 
     if mock_server_mode {
         log::debug!(
-            "
-            ip_address={:?},
-            cli_ip_address={:?},
-            config_ip_address={:?},
-            mock_server_mode={:?},
-            config_mock_server_ip_address={:?}
+            "\
+            ip_address={:?}, \
+            cli_ip_address={:?}, \
+            config_ip_address={:?}, \
+            mock_server_mode={:?}, \
+            config_mock_server_ip_address={:?} \
             ",
             ip_address,
             cli_ip_address,
@@ -311,12 +325,17 @@ fn main() {
             });
             commands::query::display_message(&message_type, &proto_message, output_path.as_deref());
         }
-        Commands::Poll { reset_database } => {
+        Commands::Poll {
+            reset_database,
+            database_path,
+        } => {
             assert_ip_address(&ip_address);
 
-            commands::poll::poll_device(&ip_address, &config, *reset_database).unwrap_or_else(|e| {
-                fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
-            });
+            commands::poll::poll_device(&ip_address, &config, *reset_database, database_path.as_ref()).unwrap_or_else(
+                |e| {
+                    fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
+                },
+            );
         }
         Commands::Config { command } => match command {
             ConfigCommands::Get { property_path } => {

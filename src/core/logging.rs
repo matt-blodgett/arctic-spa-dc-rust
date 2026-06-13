@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 
+use std::fs::OpenOptions;
 use std::io::Write;
+use std::path::Path;
 use std::str::FromStr;
 
 use clap::ValueEnum;
@@ -60,12 +62,24 @@ impl FromStr for LogLevel {
     }
 }
 
-pub const DEFAULT_LOGGING_LEVEL: LogLevel = LogLevel::Off;
+pub const DEFAULT_LOGGING_LEVEL: LogLevel = LogLevel::Debug;
 
-pub fn init_logging(log_level: LogLevel) -> () {
+pub fn init_logging(log_level: LogLevel, log_file_path: Option<&Path>) -> Result<(), std::io::Error> {
     let level_filter = log_level.to_level_filter();
+    let mut builder = env_logger::Builder::new();
 
-    env_logger::Builder::new()
+    if let Some(path) = log_file_path {
+        if let Some(parent) = path.parent() {
+            if !parent.as_os_str().is_empty() {
+                std::fs::create_dir_all(parent)?;
+            }
+        }
+
+        let file = OpenOptions::new().create(true).append(true).open(path)?;
+        builder.target(env_logger::Target::Pipe(Box::new(file)));
+    }
+
+    builder
         .format(|buf, record| {
             // https://docs.rs/log/0.4.29/log/struct.Record.html
             // println!("{:?}", record);
@@ -89,32 +103,29 @@ pub fn init_logging(log_level: LogLevel) -> () {
             //     record.args()
             // )
 
-            let mut level = record.level().to_string();
-            if level.len() == 4 {
-                level += " ";
-            }
-
-            // FOR FILES AND LINES
+            // FILES AND LINES
             writeln!(
                 buf,
-                "[{} | {} | {}:{}] {}",
+                "[{} | {:<5} | {}:{}] {}",
                 buf.timestamp(),
-                level,
+                record.level().to_string(),
                 record.file().unwrap_or(""),
                 record.line().unwrap_or(0),
                 record.args()
             )
 
-            // FOR MODULES
+            // MODULES
             // writeln!(
             //     buf,
-            //     "[{} | {} | {:}] {}",
+            //     "[{} | {:<5} | {:}] {}",
             //     buf.timestamp(),
-            //     level,
+            //     record.level().to_string(),
             //     record.module_path().unwrap_or(""),
             //     record.args()
             // )
         })
         .filter_level(level_filter)
         .init();
+
+    Ok(())
 }
