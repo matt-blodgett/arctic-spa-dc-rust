@@ -24,6 +24,26 @@ fn proto_error_to_io(error: protobuf::Error) -> Error {
     Error::new(ErrorKind::InvalidData, format!("protobuf io error: {}", error))
 }
 
+fn serialize_proto_message(message: &impl Message) -> Result<Vec<u8>, Error> {
+    message.write_to_bytes().map_err(proto_error_to_io)
+}
+
+fn random_delta(seed: u64, max_abs: i32) -> i32 {
+    let now_nanos = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(0);
+
+    // Lightweight xorshift-style mixing from time + seed.
+    let mut x = now_nanos ^ seed.wrapping_mul(0x9E3779B97F4A7C15);
+    x ^= x << 13;
+    x ^= x >> 7;
+    x ^= x << 17;
+
+    let magnitude = (x % (max_abs as u64) + 1) as i32;
+    if (x & 1) == 0 { magnitude } else { -magnitude }
+}
+
 struct MockState {
     live: proto::Live::Live,
     onzen_live: proto::OnzenLive::OnzenLive,
@@ -37,6 +57,7 @@ struct MockState {
     filter: proto::Filter::Filter,
     peripheral: proto::Peripheral::Peripheral,
     onzen_settings: proto::OnzenSettings::OnzenSettings,
+    error_sequence_step: usize,
     response_queue: VecDeque<(MessageType, Vec<u8>)>,
 }
 
@@ -304,6 +325,83 @@ impl MockState {
         message
     }
 
+    fn update_message_clock(&mut self) -> () {
+        let datetime: DateTime<Utc> = SystemTime::now().into();
+
+        self.clock.set_year(datetime.year() as i32);
+        self.clock.set_month(datetime.month() as i32);
+        self.clock.set_day(datetime.day() as i32);
+        self.clock.set_hour(datetime.hour() as i32);
+        self.clock.set_minute(datetime.minute() as i32);
+        self.clock.set_second(datetime.second() as i32);
+    }
+
+    fn clear_all_errors(&mut self) {
+        self.error.set_no_flow(false);
+        self.error.set_flow_switch(false);
+        self.error.set_heater_over_temperature(false);
+        self.error.set_spa_over_temperature(false);
+        self.error.set_spa_temperature_probe(false);
+        self.error.set_spa_high_limit(false);
+        self.error.set_eeprom(false);
+        self.error.set_freeze_protect(false);
+        self.error.set_ph_high(false);
+        self.error.set_heater_probe_disconnected(false);
+    }
+
+    fn update_message_error(&mut self) {
+        // Session sequence:
+        // 1) first request => all errors off
+        // 2) next requests => turn on one distinct error at a time
+        // 3) after each error has been on once => keep all errors off
+        const ERROR_COUNT: usize = 10;
+
+        self.clear_all_errors();
+
+        if self.error_sequence_step == 0 {
+            self.error_sequence_step += 1;
+            return;
+        }
+
+        let error_index = self.error_sequence_step - 1;
+        match error_index {
+            0 => self.error.set_no_flow(true),
+            1 => self.error.set_flow_switch(true),
+            2 => self.error.set_heater_over_temperature(true),
+            3 => self.error.set_spa_over_temperature(true),
+            4 => self.error.set_spa_temperature_probe(true),
+            5 => self.error.set_spa_high_limit(true),
+            6 => self.error.set_eeprom(true),
+            7 => self.error.set_freeze_protect(true),
+            8 => self.error.set_ph_high(true),
+            9 => self.error.set_heater_probe_disconnected(true),
+            _ => {}
+        }
+
+        if self.error_sequence_step <= ERROR_COUNT {
+            self.error_sequence_step += 1;
+        }
+    }
+
+    fn update_message_onzen_live(&mut self) {
+        const MIN_ORP: i32 = 500;
+        const MAX_ORP: i32 = 850;
+        const MIN_PH_100: i32 = 689;
+        const MAX_PH_100: i32 = 780;
+
+        let current_orp = self.onzen_live.orp();
+        let current_ph_100 = self.onzen_live.ph_100();
+
+        let orp_delta = random_delta(current_orp as u64 ^ 0xA55A_A55A, 12);
+        let ph_100_delta = random_delta(current_ph_100 as u64 ^ 0x5AA5_5AA5, 8);
+
+        let next_orp = (current_orp + orp_delta).clamp(MIN_ORP, MAX_ORP);
+        let next_ph_100 = (current_ph_100 + ph_100_delta).clamp(MIN_PH_100, MAX_PH_100);
+
+        self.onzen_live.set_orp(next_orp);
+        self.onzen_live.set_ph_100(next_ph_100);
+    }
+
     fn new() -> Self {
         Self {
             clock: MockState::default_message_clock(),
@@ -318,6 +416,7 @@ impl MockState {
             peripheral: MockState::default_message_peripheral(),
             router: MockState::default_message_router(),
             settings: MockState::default_message_settings(),
+            error_sequence_step: 0,
 
             response_queue: VecDeque::new(),
         }
@@ -438,20 +537,29 @@ impl MockState {
         self.response_queue.pop_front()
     }
 
-    fn response_payload(&self, message_type: MessageType) -> Result<Vec<u8>, Error> {
+    fn response_payload(&mut self, message_type: MessageType) -> Result<Vec<u8>, Error> {
         match message_type {
-            MessageType::Clock => self.clock.write_to_bytes().map_err(proto_error_to_io),
-            MessageType::Configuration => self.configuration.write_to_bytes().map_err(proto_error_to_io),
-            MessageType::Error => self.error.write_to_bytes().map_err(proto_error_to_io),
-            MessageType::Filter => self.filter.write_to_bytes().map_err(proto_error_to_io),
-            MessageType::Information => self.information.write_to_bytes().map_err(proto_error_to_io),
-            MessageType::Live => self.live.write_to_bytes().map_err(proto_error_to_io),
-            MessageType::OnzenLive => self.onzen_live.write_to_bytes().map_err(proto_error_to_io),
-            MessageType::OnzenSettings => self.onzen_settings.write_to_bytes().map_err(proto_error_to_io),
-            MessageType::Peak => self.peak.write_to_bytes().map_err(proto_error_to_io),
-            MessageType::Peripheral => self.peripheral.write_to_bytes().map_err(proto_error_to_io),
-            MessageType::Router => self.router.write_to_bytes().map_err(proto_error_to_io),
-            MessageType::Settings => self.settings.write_to_bytes().map_err(proto_error_to_io),
+            MessageType::Clock => {
+                self.update_message_clock();
+                serialize_proto_message(&self.clock)
+            }
+            MessageType::Configuration => serialize_proto_message(&self.configuration),
+            MessageType::Error => {
+                self.update_message_error();
+                serialize_proto_message(&self.error)
+            }
+            MessageType::Filter => serialize_proto_message(&self.filter),
+            MessageType::Information => serialize_proto_message(&self.information),
+            MessageType::Live => serialize_proto_message(&self.live),
+            MessageType::OnzenLive => {
+                self.update_message_onzen_live();
+                serialize_proto_message(&self.onzen_live)
+            }
+            MessageType::OnzenSettings => serialize_proto_message(&self.onzen_settings),
+            MessageType::Peak => serialize_proto_message(&self.peak),
+            MessageType::Peripheral => serialize_proto_message(&self.peripheral),
+            MessageType::Router => serialize_proto_message(&self.router),
+            MessageType::Settings => serialize_proto_message(&self.settings),
             MessageType::Command | MessageType::Heartbeat => Ok(vec![]),
         }
     }
