@@ -99,24 +99,26 @@ pub fn init_logging(log_level: LogLevel) -> () {
                 level += " ";
             }
 
-            // writeln!(
-            //     buf,
-            //     "[{} | {} | {}:{}] {}",
-            //     buf.timestamp(),
-            //     level,
-            //     record.file().unwrap_or(""),
-            //     record.line().unwrap_or(0),
-            //     record.args()
-            // )
-
+            // FOR FILES AND LINES
             writeln!(
                 buf,
-                "[{} | {} | {:}] {}",
+                "[{} | {} | {}:{}] {}",
                 buf.timestamp(),
                 level,
-                record.module_path().unwrap_or(""),
+                record.file().unwrap_or(""),
+                record.line().unwrap_or(0),
                 record.args()
             )
+
+            // FOR MODULES
+            // writeln!(
+            //     buf,
+            //     "[{} | {} | {:}] {}",
+            //     buf.timestamp(),
+            //     level,
+            //     record.module_path().unwrap_or(""),
+            //     record.args()
+            // )
         })
         .filter_level(level_filter)
         .init();

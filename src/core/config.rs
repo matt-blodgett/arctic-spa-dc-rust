@@ -54,7 +54,7 @@ pub type MessagePollingConfigs = HashMap<MessageType, MessagePollingConfig>;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PollingConfig {
     pub messages: MessagePollingConfigs,
-    pub max_polling_duration_ms: u64,
+    pub max_duration_ms: u64,
 }
 
 impl PollingConfig {
@@ -112,7 +112,7 @@ impl PollingConfig {
 
         Self {
             messages,
-            max_polling_duration_ms: 0
+            max_duration_ms: 0
         }
     }
 }
@@ -176,14 +176,60 @@ impl AppConfigManager {
 
     pub fn set_path_value(&mut self, path: &str, value: serde_json::Value) -> Result<(), Box<dyn std::error::Error>> {
         let mut json = serde_json::to_value(&self.data)?;
+        let default_json = serde_json::to_value(AppConfig::default())?;
         // let keys: Vec<&str> = path.split('.').collect();
 
         let pointer_path = format!("/{}", path.replace('.', "/"));
         // println!("pointer_path: {:#?}", pointer_path);
 
-        if let Some(old_value) = json.pointer_mut(&pointer_path) {
-            *old_value = value;
-        }
+        let current_value = json
+            .pointer(&pointer_path)
+            .ok_or_else(|| {
+                format!("invalid config path: {}", path)
+            })?;
+
+        let template_value = if current_value.is_null() {
+            default_json.pointer(&pointer_path).unwrap_or(current_value)
+        } else {
+            current_value
+        };
+
+        let coerced_value = if template_value.is_number() {
+            let number = match value {
+                Value::Number(number) => number,
+                Value::String(string_value) => {
+                    match serde_json::from_str::<Value>(&string_value) {
+                        Ok(Value::Number(number)) => number,
+                        _ => return Err("invalid number value".into()),
+                    }
+                }
+                _ => return Err("invalid number value".into()),
+            };
+
+            Value::Number(number)
+        } else if template_value.is_boolean() {
+            let boolean = match value {
+                Value::Bool(boolean) => boolean,
+                Value::String(string_value) => {
+                    match serde_json::from_str::<Value>(&string_value) {
+                        Ok(Value::Bool(boolean)) => boolean,
+                        _ => return Err("invalid boolean value".into()),
+                    }
+                }
+                _ => return Err("invalid boolean value".into()),
+            };
+
+            Value::Bool(boolean)
+        } else {
+            value
+        };
+
+        let old_value = json
+            .pointer_mut(&pointer_path)
+            .ok_or_else(|| {
+                format!("invalid config path: {}", path)
+            })?;
+        *old_value = coerced_value;
 
         self.data = serde_json::from_value(json)?;
         self.save()?;
