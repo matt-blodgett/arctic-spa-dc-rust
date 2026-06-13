@@ -441,46 +441,60 @@ impl MockState {
     }
 
     fn apply_command(&mut self, command: &proto::Command::Command) -> Result<(), Error> {
-        // log::debug!("applying command={:?}", command);
+        log::debug!("applying command");
         if command.has_set_temperature_setpoint_fahrenheit() {
+            log::debug!(
+                "command - set temperature setpoint fahrenheit: {}",
+                command.set_temperature_setpoint_fahrenheit()
+            );
             self.live
                 .set_temperature_setpoint_fahrenheit(command.set_temperature_setpoint_fahrenheit());
         }
         if command.has_set_pump_1() {
+            log::debug!("command - set pump 1: {:?}", command.set_pump_1());
             self.live
                 .set_pump_1(MockState::command_pump_to_live(command.set_pump_1()));
         }
         if command.has_set_pump_2() {
+            log::debug!("command - set pump 2: {:?}", command.set_pump_2());
             self.live
                 .set_pump_2(MockState::command_pump_to_live(command.set_pump_2()));
         }
         if command.has_set_pump_3() {
+            log::debug!("command - set pump 3: {:?}", command.set_pump_3());
             self.live
                 .set_pump_3(MockState::command_pump_to_live(command.set_pump_3()));
         }
         if command.has_set_pump_4() {
+            log::debug!("command - set pump 4: {:?}", command.set_pump_4());
             self.live
                 .set_pump_4(MockState::command_pump_to_live(command.set_pump_4()));
         }
         if command.has_set_pump_5() {
+            log::debug!("command - set pump 5: {:?}", command.set_pump_5());
             self.live
                 .set_pump_5(MockState::command_pump_to_live(command.set_pump_5()));
         }
         if command.has_set_blower_1() {
+            log::debug!("command - set blower 1: {:?}", command.set_blower_1());
             self.live
                 .set_blower_1(MockState::command_pump_to_live(command.set_blower_1()));
         }
         if command.has_set_blower_2() {
+            log::debug!("command - set blower 2: {:?}", command.set_blower_2());
             self.live
                 .set_blower_2(MockState::command_pump_to_live(command.set_blower_2()));
         }
         if command.has_set_lights() {
+            log::debug!("command - set lights: {:?}", command.set_lights());
             self.live.set_lights(command.set_lights());
         }
         if command.has_set_stereo() {
+            log::debug!("command - set stereo: {:?}", command.set_stereo());
             self.live.set_stereo(command.set_stereo());
         }
         if command.has_set_filter() {
+            log::debug!("command - set filter: {:?}", command.set_filter());
             self.live.set_filter(if command.set_filter() {
                 proto::Live::live::FilterStatus::FILTER_FILTERING
             } else {
@@ -488,9 +502,11 @@ impl MockState {
             });
         }
         if command.has_set_onzen() {
+            log::debug!("command - set onzen: {:?}", command.set_onzen());
             self.live.set_onzen(command.set_onzen());
         }
         if command.has_set_ozone() {
+            log::debug!("command - set ozone: {:?}", command.set_ozone());
             self.live.set_ozone(if command.set_ozone() {
                 proto::Live::live::OzoneStatus::OZONE_ACTIVE
             } else {
@@ -498,25 +514,32 @@ impl MockState {
             });
         }
         if command.has_set_exhaust_fan() {
+            log::debug!("command - set exhaust fan: {:?}", command.set_exhaust_fan());
             self.live.set_exhaust_fan(command.set_exhaust_fan());
         }
         if command.has_set_sauna_state() {
+            log::debug!("command - set sauna state: {:?}", command.set_sauna_state());
             self.live
                 .set_sauna(MockState::command_sauna_to_live(command.set_sauna_state()));
         }
         if command.has_set_sauna_time_left() {
+            log::debug!("command - set sauna time left: {:?}", command.set_sauna_time_left());
             self.live.set_sauna_time_remaining(command.set_sauna_time_left());
         }
         if command.has_set_all_on() {
+            log::debug!("command - set all on: {:?}", command.set_all_on());
             self.live.set_all_on(command.set_all_on());
         }
         if command.has_set_fogger() {
+            log::debug!("command - set fogger: {:?}", command.set_fogger());
             self.live.set_fogger(command.set_fogger());
         }
         if command.has_set_sds() {
+            log::debug!("command - set sds: {:?}", command.set_sds());
             self.live.set_sds(command.set_sds());
         }
         if command.has_set_yess() {
+            log::debug!("command - set yess: {:?}", command.set_yess());
             self.live.set_yess(command.set_yess());
         }
 

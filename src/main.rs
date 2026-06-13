@@ -60,7 +60,11 @@ enum Commands {
         output_path: Option<PathBuf>,
     },
     /// Continuously poll protobuf messages from the hot tub and write structured data to a sqlite database
-    Poll {},
+    Poll {
+        /// Overwrite the existing database file (deleting existing data)
+        #[arg(long)]
+        reset_database: bool,
+    },
     /// Store and retrieve this application's settings
     Config {
         #[command(subcommand)]
@@ -307,11 +311,11 @@ fn main() {
             });
             commands::query::display_message(&message_type, &proto_message, output_path.as_deref());
         }
-        Commands::Poll {} => {
+        Commands::Poll { reset_database } => {
             // TODO: command line args?
             assert_ip_address(&ip_address);
 
-            commands::poll::poll_device(&ip_address, &config).unwrap_or_else(|e| {
+            commands::poll::poll_device(&ip_address, &config, *reset_database).unwrap_or_else(|e| {
                 fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
             });
         }

@@ -14,7 +14,11 @@ use crate::core::config::MessagePollingConfigs;
 use crate::core::db;
 use crate::core::net::{MessageType, NetworkClient};
 
-pub fn poll_device(ip_address: &str, config: &AppConfigManager) -> Result<(), Box<dyn std::error::Error>> {
+pub fn poll_device(
+    ip_address: &str,
+    config: &AppConfigManager,
+    reset_database: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     // ---------------------------------------------
     // polling configuration setup
 
@@ -67,7 +71,7 @@ pub fn poll_device(ip_address: &str, config: &AppConfigManager) -> Result<(), Bo
     let mut network_client = NetworkClient::connect(ip_address)?;
 
     log::info!("initializing database");
-    let mut db_client = db::DatabaseClient::open(None, false)?;
+    let mut db_client = db::DatabaseClient::open(None, reset_database)?;
     db_client.create_connection_session(ip_address)?;
 
     // ---------------------------------------------
