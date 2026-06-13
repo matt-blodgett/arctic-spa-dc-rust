@@ -267,7 +267,9 @@ impl AppConfigManager {
     // TODO: ADD LOGGING
     pub fn get_path_value(&self, path: &str) -> Option<serde_json::Value> {
         let json = serde_json::to_value(&self.data).ok()?;
-        path.split('.').fold(Some(json), |node, key| node?.get(key).cloned())
+        let value = path.split('.').fold(Some(json), |node, key| node?.get(key).cloned());
+        log::trace!("get_path_value: path={:}, value={:#?}", path, value);
+        value
     }
 
     pub fn set_path_value(&mut self, path: &str, value: serde_json::Value) -> Result<(), Box<dyn std::error::Error>> {
@@ -319,6 +321,14 @@ impl AppConfigManager {
         let old_value = json
             .pointer_mut(&pointer_path)
             .ok_or_else(|| format!("invalid config path: {}", path))?;
+
+        log::trace!(
+            "set_path_value: path={:}, old_value={:#?}, new_value={:#?}",
+            path,
+            old_value,
+            coerced_value
+        );
+
         *old_value = coerced_value;
 
         self.data = serde_json::from_value(json)?;
@@ -351,8 +361,8 @@ impl AppConfigManager {
 
         // load existing config file
         log::debug!("loading config from {:#?}", config_path.display());
-        let config_content = fs::read_to_string(&config_path)?;
 
+        let config_content = fs::read_to_string(&config_path)?;
         let data: AppConfig = serde_json::from_str(&config_content).unwrap_or_else(|_| {
             log::warn!("failed to parse config file, overwriting with default values");
             AppConfig::default()
@@ -378,17 +388,19 @@ impl AppConfigManager {
         let is_new_file = initialize_path(config_path)?;
 
         let data: AppConfig = if is_new_file {
-            log::debug!(
-                "config file {:#?} not found, creating with default values",
-                config_path.display()
-            );
             AppConfig::default()
         } else {
             let config_content = fs::read_to_string(&config_path)?;
-            serde_json::from_str(&config_content).unwrap_or_else(|_| {
-                log::warn!("failed to parse config file, overwriting with default values");
-                AppConfig::default()
-            })
+            match serde_json::from_str(&config_content) {
+                Ok(data) => {
+                    log::debug!("config file parsed successfully");
+                    data
+                }
+                Err(err) => {
+                    log::error!("failed to parse config file: {}", err);
+                    return Err(err.into());
+                }
+            }
         };
 
         let config_manager = Self {
