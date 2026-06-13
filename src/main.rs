@@ -143,11 +143,10 @@ fn assert_ip_address(ip_address: &str) {
 fn main() {
     let cli = Cli::parse();
 
-    // ---------------------------------------------
+    // ----------------------------------------------------------------------
 
-    // check if config file location is specified explicitly in cli args
     let mut config = if let Some(path) = cli.config_path.as_ref() {
-        log::debug!("config_path: {}", path.display());
+        log::debug!("config_path={}", path.display());
         core::config::AppConfigManager::load_from_path(path).unwrap_or_else(|e| {
             fatal_error_and_exit(&format!("failed to load config from specified path: {}", e));
         })
@@ -157,11 +156,22 @@ fn main() {
         })
     };
 
+    // ----------------------------------------------------------------------
+
+    let mut is_mock_server_instance = false;
+    let mut config_path_logging_level = "logging.level";
+    let mut config_path_logging_path = "logging.path";
+    if let Commands::StartMockServer { .. } = &cli.command {
+        is_mock_server_instance = true;
+        config_path_logging_level = "mock_server.logging.level";
+        config_path_logging_path = "mock_server.logging.path";
+    }
+
     let config_log_level = config
-        .get_path_value("logging.level")
+        .get_path_value(config_path_logging_level)
         .and_then(|value| serde_json::from_value::<core::logging::LogLevel>(value).ok());
-    let config_log_file_path = config
-        .get_path_value("logging.file_path")
+    let config_log_path = config
+        .get_path_value(config_path_logging_path)
         .and_then(|value| serde_json::from_value::<Option<PathBuf>>(value).ok())
         .flatten();
 
@@ -170,21 +180,21 @@ fn main() {
         .log_level
         .or(config_log_level)
         .unwrap_or(core::logging::DEFAULT_LOGGING_LEVEL);
-    let log_file_path = cli.log_file_path.or(config_log_file_path);
+    let log_path = cli.log_file_path.or(config_log_path);
 
-    core::logging::init_logging(log_level, log_file_path.as_deref()).unwrap_or_else(|e| {
+    core::logging::init_logging(log_level, log_path.as_deref()).unwrap_or_else(|e| {
         fatal_error_and_exit(&format!("failed to initialize logging: {}", e));
     });
     log::debug!(
         "logging initialized: level={}, file_path={}",
         log::max_level(),
-        log_file_path
+        log_path
             .as_ref()
             .map(|path| path.display().to_string())
             .unwrap_or_else(|| "stderr".to_string())
     );
 
-    // ---------------------------------------------
+    // ----------------------------------------------------------------------
 
     log::info!("initializing app");
 
@@ -205,10 +215,10 @@ fn main() {
     let mock_server_mode = cli_mock_server_mode || config_mock_server_enabled;
 
     // ensure any ip provided in cli args take precendence
-    let mut ip_address = if cli_ip_address.is_some() {
+    let ip_address = if cli_ip_address.is_some() {
         cli_ip_address.clone().unwrap()
     } else {
-        // now we'll check if we are running a mock server
+        // now check if we are running against a local mock server
         if mock_server_mode {
             // use the mock server ip if set in config file
             config_mock_server_ip_address.clone()
@@ -217,12 +227,8 @@ fn main() {
             config_ip_address.clone()
         }
     };
-    // ultimate fallback
-    if ip_address.is_empty() {
-        ip_address = commands::mock_server::DEFAULT_HOST.to_string();
-    }
 
-    if mock_server_mode {
+    if is_mock_server_instance {
         log::debug!(
             "\
             ip_address={:?}, \
@@ -241,7 +247,7 @@ fn main() {
 
     log::debug!("using ip_address={:}", ip_address);
 
-    // ---------------------------------------------
+    // ----------------------------------------------------------------------
 
     log::info!("running command: {:?}", cli.command);
 

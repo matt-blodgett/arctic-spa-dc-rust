@@ -19,6 +19,7 @@ pub struct MockServerConfig {
     pub ip_address: String,
     #[serde(default)]
     pub enabled: bool,
+    pub logging: LoggingConfig,
 }
 
 impl MockServerConfig {
@@ -30,6 +31,7 @@ impl MockServerConfig {
         Self {
             ip_address: Self::cfg_default_mock_server_ip_address(),
             enabled: false,
+            logging: LoggingConfig::default(),
         }
     }
 }

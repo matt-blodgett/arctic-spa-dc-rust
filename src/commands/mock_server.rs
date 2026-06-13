@@ -627,7 +627,7 @@ fn read_packet(stream: &mut TcpStream) -> Result<(MessageType, Vec<u8>), Error> 
     stream.read_exact(&mut payload)?;
 
     let message_type = MessageType::try_from(message_type_value)?;
-    log::debug!(
+    log::info!(
         "received packet: message_type_value={:?}, message_type={:?}, payload_size={}",
         message_type_value,
         message_type,
@@ -639,8 +639,9 @@ fn read_packet(stream: &mut TcpStream) -> Result<(MessageType, Vec<u8>), Error> 
 fn write_packet(stream: &mut TcpStream, message_type: MessageType, payload: Vec<u8>) -> Result<(), Error> {
     let bytes = packet_bytes(message_type, payload);
     stream.write_all(&bytes)?;
-    log::debug!(
-        "sent packet: message_type={:?}, payload_size={}",
+    log::info!(
+        "sent packet: message_type_value={:?}, message_type={:?}, payload_size={}",
+        u16::from(message_type),
         message_type,
         bytes.len() - HEADER_SIZE
     );
@@ -658,7 +659,7 @@ fn handle_client(mut stream: TcpStream, state: Arc<Mutex<MockState>>) -> Result<
                 (MessageType::Heartbeat, vec![])
             }
             Err(err) if err.kind() == ErrorKind::UnexpectedEof => {
-                log::debug!("mock client disconnected");
+                log::info!("mock client disconnected");
                 return Ok(());
             }
             Err(err) => {
@@ -706,7 +707,7 @@ fn handle_client(mut stream: TcpStream, state: Arc<Mutex<MockState>>) -> Result<
             continue;
         }
 
-        log::debug!(
+        log::warn!(
             "ignoring unsupported packet: message_type={:?}, payload_size={}",
             message_type,
             payload.len()
@@ -719,7 +720,6 @@ pub fn run(bind_address: &str) -> Result<(), Box<dyn std::error::Error>> {
     let state = Arc::new(Mutex::new(MockState::new()));
 
     log::info!("mock server listening on {}", bind_address);
-    println!("mock server listening on {}", bind_address);
 
     for stream_result in listener.incoming() {
         match stream_result {
