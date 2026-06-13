@@ -1524,3 +1524,153 @@ impl DatabaseClient {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::env;
+    use std::fs;
+    use std::path::PathBuf;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    use super::*;
+
+    fn test_db_path(suffix: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock should be after UNIX_EPOCH")
+            .as_nanos();
+        env::temp_dir().join(format!("asdc-tests-{}-{}.sqlite", suffix, nanos))
+    }
+
+    fn remove_db_file(path: &PathBuf) {
+        let _ = fs::remove_file(path);
+    }
+
+    fn count_rows(client: &DatabaseClient, table: &str) -> i64 {
+        let sql = format!("SELECT COUNT(*) FROM {}", table);
+        client
+            .conn
+            .query_row(&sql, [], |row| row.get::<usize, i64>(0))
+            .expect("count query should succeed")
+    }
+
+    #[test]
+    fn open_initializes_schema_and_process_run() {
+        let path = test_db_path("open-initializes");
+
+        let client = DatabaseClient::open(Some(&path), true).expect("database open should succeed");
+
+        assert_eq!(count_rows(&client, "process_run"), 1);
+        assert_eq!(count_rows(&client, "connection_session"), 0);
+
+        let has_message_live: i64 = client
+            .conn
+            .query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='message_live'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("sqlite_master query should succeed");
+        assert_eq!(has_message_live, 1);
+
+        drop(client);
+        remove_db_file(&path);
+    }
+
+    #[test]
+    fn insert_message_requires_connection_session() {
+        let path = test_db_path("requires-session");
+
+        let client = DatabaseClient::open(Some(&path), true).expect("database open should succeed");
+
+        let mut clock = proto::Clock::Clock::new();
+        clock.set_year(2026);
+
+        let message = ProtoMessage::Clock {
+            message: clock,
+            received_at: SystemTime::now(),
+        };
+
+        let result = client.insert_message(&message);
+        assert!(matches!(result, Err(rusqlite::Error::InvalidQuery)));
+
+        drop(client);
+        remove_db_file(&path);
+    }
+
+    #[test]
+    fn insert_message_clock_persists_payload() {
+        let path = test_db_path("clock-insert");
+
+        let mut client = DatabaseClient::open(Some(&path), true).expect("database open should succeed");
+        client
+            .create_connection_session("127.0.0.1")
+            .expect("creating connection session should succeed");
+
+        let mut clock = proto::Clock::Clock::new();
+        clock.set_year(2026);
+        clock.set_month(6);
+        clock.set_day(13);
+        clock.set_hour(8);
+        clock.set_minute(30);
+        clock.set_second(45);
+
+        let message = ProtoMessage::Clock {
+            message: clock,
+            received_at: SystemTime::now(),
+        };
+
+        client.insert_message(&message).expect("clock insert should succeed");
+
+        let row: (i32, i32, i32, i32, i32, i32) = client
+            .conn
+            .query_row(
+                "SELECT year, month, day, hour, minute, second FROM message_clock ORDER BY id DESC LIMIT 1",
+                [],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                    ))
+                },
+            )
+            .expect("message_clock row should exist");
+
+        assert_eq!(row, (2026, 6, 13, 8, 30, 45));
+
+        drop(client);
+        remove_db_file(&path);
+    }
+
+    #[test]
+    fn insert_message_skips_command_and_router() {
+        let path = test_db_path("unsupported-routes");
+
+        let mut client = DatabaseClient::open(Some(&path), true).expect("database open should succeed");
+        client
+            .create_connection_session("127.0.0.1")
+            .expect("creating connection session should succeed");
+
+        let command_message = ProtoMessage::Command {
+            message: proto::Command::Command::new(),
+            received_at: SystemTime::now(),
+        };
+        let router_message = ProtoMessage::Router {
+            message: proto::Router::Router::new(),
+            received_at: SystemTime::now(),
+        };
+
+        assert!(client.insert_message(&command_message).is_ok());
+        assert!(client.insert_message(&router_message).is_ok());
+        assert_eq!(count_rows(&client, "message_clock"), 0);
+        assert_eq!(count_rows(&client, "message_live"), 0);
+        assert_eq!(count_rows(&client, "message_settings"), 0);
+
+        drop(client);
+        remove_db_file(&path);
+    }
+}
