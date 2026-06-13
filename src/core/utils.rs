@@ -7,24 +7,26 @@ const APP_APPLICATION: &str = "arctic-spa-dc-rust";
 pub const DB_DEFAULT_FILE_NAME: &str = "asdc.db";
 pub const CONFIG_DEFAULT_FILE_NAME: &str = "config.json";
 
-pub fn default_data_dir() -> PathBuf {
-    if let Some(proj_dirs) = directories::ProjectDirs::from(APP_QUALIFIER, APP_ORGANIZATION, APP_APPLICATION) {
-        proj_dirs.data_dir().to_path_buf()
-    } else {
-        // fallback to current directory
-        PathBuf::from(".")
-    }
+pub fn default_proj_dir() -> Option<directories::ProjectDirs> {
+    directories::ProjectDirs::from(APP_QUALIFIER, APP_ORGANIZATION, APP_APPLICATION)
 }
-pub fn default_database_path() -> PathBuf {
-    default_data_dir().join(DB_DEFAULT_FILE_NAME)
+
+fn proj_dir_or_fallback() -> directories::ProjectDirs {
+    default_proj_dir().unwrap_or_else(|| {
+        log::warn!("could not determine project directory, falling back to current directory");
+        directories::ProjectDirs::from("", "", "").expect("fallback project dir should always resolve")
+    })
+}
+
+pub fn default_data_dir() -> PathBuf {
+    proj_dir_or_fallback().data_dir().to_path_buf()
 }
 pub fn default_config_dir() -> PathBuf {
-    if let Some(proj_dirs) = directories::ProjectDirs::from(APP_QUALIFIER, APP_ORGANIZATION, APP_APPLICATION) {
-        proj_dirs.config_dir().to_path_buf()
-    } else {
-        // fallback to current directory
-        PathBuf::from(".")
-    }
+    proj_dir_or_fallback().config_dir().to_path_buf()
+}
+
+pub fn default_database_path() -> PathBuf {
+    default_data_dir().join(DB_DEFAULT_FILE_NAME)
 }
 pub fn default_config_path() -> PathBuf {
     default_config_dir().join(CONFIG_DEFAULT_FILE_NAME)
@@ -46,9 +48,10 @@ pub fn initialize_path(path: &PathBuf) -> Result<bool, Box<dyn std::error::Error
 
         let file = std::fs::File::create(&path)?;
 
-        log::info!("created file {:#?}", path.display());
-        log::info!("file size: {:} bytes", file.metadata()?.len());
+        log::info!("created file {:#?}, size={}", path.display(), file.metadata()?.len());
     }
+
+    log::trace!("initialized path {:#?} (new file: {})", path.display(), is_new_file);
 
     Ok(is_new_file)
 }
