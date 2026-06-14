@@ -465,15 +465,21 @@ pub fn get_device_property_value(
     log::debug!("read device property value {:?}", property_name.as_name());
     let mut network_client = NetworkClient::connect(ip_address)?;
     let value = get_message_value(&mut network_client, property_name)?;
-    log::info!("read device property value {:?}={:?}", property_name.as_name(), value);
+    log::info!("{:?}={:?}", property_name.as_name(), value);
     Ok(value)
 }
 pub fn display_device_property_value(property_name: &DevicePropertyNameGet, value: &String) -> () {
-    println!("device value: {:?}={:?}", property_name.as_name(), value);
+    println!("{:?}={:?}", property_name.as_name(), value);
+}
+pub fn get_and_display_device_property_value(
+    ip_address: &str,
+    property_name: &DevicePropertyNameGet,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let value = get_device_property_value(ip_address, property_name)?;
+    display_device_property_value(property_name, &value);
+    Ok(())
 }
 pub fn get_and_display_all_device_properties(ip_address: &str) -> Result<(), Box<dyn std::error::Error>> {
-    println!("displaying all device properties");
-
     let mut network_client = NetworkClient::connect(ip_address)?;
 
     let message_live = network_client.request_message_and_await_response(&MessageType::Live)?;

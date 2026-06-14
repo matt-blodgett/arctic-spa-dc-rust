@@ -56,7 +56,7 @@ impl From<QueryMessageName> for MessageType {
     }
 }
 
-pub fn get_message(ip_address: &str, message_type: &MessageType) -> Result<ProtoMessage, Error> {
+fn get_message(ip_address: &str, message_type: &MessageType) -> Result<ProtoMessage, Error> {
     log::info!(
         "getting message: host={:?}, message_type={:?}",
         ip_address,
@@ -477,8 +477,6 @@ pub fn display_message(
     output_format: Option<&QueryOutputFormat>,
     output_path: Option<&Path>,
 ) -> () {
-    log::info!("outputting message data");
-
     let output_string = match output_format {
         Some(QueryOutputFormat::PlainText) | None => get_message_formatted_plain_text(message),
         Some(QueryOutputFormat::Json) => get_message_formatted_json(message),
@@ -500,6 +498,7 @@ pub fn display_message(
         }
         None => match output_format {
             Some(QueryOutputFormat::PlainText) | None => {
+                println!("----------------------------------------");
                 println!("message type: \"{:#?}\"", message_type);
                 println!("received at: {:?}", received_at);
                 for line in output_string.split('\n') {
@@ -514,4 +513,16 @@ pub fn display_message(
             }
         },
     }
+}
+
+pub fn query_message_and_display(
+    ip_address: &str,
+    query_message_name: &QueryMessageName,
+    output_format: Option<&QueryOutputFormat>,
+    output_path: Option<&Path>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let message_type = MessageType::from(*query_message_name);
+    let proto_message = get_message(&ip_address, &message_type).unwrap();
+    display_message(&message_type, &proto_message, output_format, output_path.as_deref());
+    Ok(())
 }

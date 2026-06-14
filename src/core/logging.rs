@@ -79,6 +79,14 @@ pub fn init_logging(log_level: LogLevel, log_file_path: Option<&Path>) -> Result
         builder.target(env_logger::Target::Pipe(Box::new(file)));
     }
 
+    if log_level == LogLevel::Off {
+        builder
+            .format(|buf, record| writeln!(buf, "{}", record.args()))
+            .filter_level(log::LevelFilter::Info)
+            .init();
+        return Ok(());
+    }
+
     builder
         .format(|buf, record| {
             // https://docs.rs/log/0.4.29/log/struct.Record.html

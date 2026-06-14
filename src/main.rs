@@ -78,16 +78,16 @@ enum Commands {
         #[arg(long, value_name = "DATABASE_FILE_PATH")]
         database_path: Option<PathBuf>,
     },
-    /// Store and retrieve this application's settings
-    Config {
-        #[command(subcommand)]
-        command: ConfigCommands,
-    },
     /// Run a local mock TCP server for staging (request/response emulation)
     MockServer {
         /// Bind address for the mock server
         #[arg(long, value_name = "BIND_HOST")]
         ip_address: Option<String>,
+    },
+    /// Store and retrieve this application's settings
+    Config {
+        #[command(subcommand)]
+        command: ConfigCommands,
     },
     /// Reset all application data - overwrite config file with default values, delete current database files, log files, etc.
     Reset {
@@ -183,11 +183,9 @@ fn main() {
 
     // ----------------------------------------------------------------------
 
-    let mut is_mock_server_instance = false;
     let mut config_path_logging_level = "logging.level";
     let mut config_path_logging_path = "logging.path";
     if let Commands::MockServer { .. } = &cli.command {
-        is_mock_server_instance = true;
         config_path_logging_level = "mock_server.logging.level";
         config_path_logging_path = "mock_server.logging.path";
     }
@@ -216,12 +214,10 @@ fn main() {
         log_path
             .as_ref()
             .map(|path| path.display().to_string())
-            .unwrap_or_else(|| "stderr".to_string())
+            .unwrap_or_else(|| "console".to_string())
     );
 
     // ----------------------------------------------------------------------
-
-    log::info!("initializing app");
 
     let cli_ip_address = cli.ip_address;
     let config_ip_address = config
@@ -253,28 +249,11 @@ fn main() {
         }
     };
 
-    if is_mock_server_instance {
-        log::debug!(
-            "\
-            ip_address={:?}, \
-            cli_ip_address={:?}, \
-            config_ip_address={:?}, \
-            mock_server_mode={:?}, \
-            config_mock_server_ip_address={:?} \
-            ",
-            ip_address,
-            cli_ip_address,
-            config_ip_address,
-            mock_server_mode,
-            config_mock_server_ip_address,
-        );
-    }
-
     log::debug!("using ip_address={:}", ip_address);
 
     // ----------------------------------------------------------------------
 
-    log::info!("running command: {:?}", cli.command);
+    log::debug!("running command: {:?}", cli.command);
 
     match &cli.command {
         Commands::Discover { update_config } => {
@@ -289,22 +268,12 @@ fn main() {
 
             if *update_config {
                 if devices.is_empty() {
-                    if log::log_enabled!(log::Level::Warn) {
-                        log::warn!(
-                            "--update-config flag is set but no devices were discovered; config file will not be updated"
-                        );
-                    } else {
-                        println!(
-                            "--update-config flag is set but no devices were discovered; config file will not be updated"
-                        );
-                    }
+                    log::warn!(
+                        "--update-config flag is set but no devices were discovered; config file will not be updated"
+                    );
                 } else {
                     let first_device_ip = devices.remove(0);
                     log::info!(
-                        "updating config with first discovered device's IP address: {}",
-                        first_device_ip
-                    );
-                    println!(
                         "updating config with first discovered device's IP address: {}",
                         first_device_ip
                     );
@@ -315,7 +284,6 @@ fn main() {
                             fatal_error(&format!("failed to set config: {:?}", e));
                         });
                     log::info!("config updated successfully");
-                    println!("config updated successfully");
                 }
             }
         }
@@ -324,11 +292,11 @@ fn main() {
 
             match command {
                 DeviceCommands::Get { property_name } => {
-                    let value =
-                        commands::device::get_device_property_value(&ip_address, property_name).unwrap_or_else(|e| {
-                            fatal_error(&format!("failed to get device property value: {:?}", e));
-                        });
-                    commands::device::display_device_property_value(property_name, &value);
+                    commands::device::get_and_display_device_property_value(&ip_address, property_name).unwrap_or_else(
+                        |e| {
+                            fatal_error(&format!("failed to display device property value: {:?}", e));
+                        },
+                    );
                 }
                 DeviceCommands::Set { property_name, value } => {
                     commands::device::set_device_property_value(&ip_address, property_name, value).unwrap_or_else(
@@ -351,16 +319,15 @@ fn main() {
         } => {
             assert_ip_address(&ip_address);
 
-            let message_type: core::net::MessageType = (*message_name).into();
-            let proto_message = commands::query::get_message(&ip_address, &message_type).unwrap_or_else(|e| {
-                fatal_error(&format!("command execution failed: {:#?}", e));
-            });
-            commands::query::display_message(
-                &message_type,
-                &proto_message,
+            commands::query::query_message_and_display(
+                &ip_address,
+                &message_name,
                 output_format.as_ref(),
                 output_path.as_deref(),
-            );
+            )
+            .unwrap_or_else(|e| {
+                fatal_error(&format!("command execution failed: {:#?}", e));
+            });
         }
         Commands::Poll {
             reset_database,
@@ -373,6 +340,23 @@ fn main() {
                     fatal_error(&format!("command execution failed: {:#?}", e));
                 },
             );
+        }
+        Commands::MockServer { ip_address } => {
+            let host = if ip_address.is_some() {
+                ip_address.clone().unwrap()
+            } else if !config_mock_server_ip_address.is_empty() {
+                config_mock_server_ip_address.clone()
+            } else {
+                commands::mock_server::DEFAULT_HOST.to_string()
+            };
+
+            let bind_address = format!("{}:{}", host, commands::mock_server::DEFAULT_PORT);
+
+            log::info!("starting mock server: bind_address={:}", bind_address);
+
+            commands::mock_server::run(&bind_address).unwrap_or_else(|e| {
+                fatal_error(&format!("mock server failed: {:#?}", e));
+            });
         }
         Commands::Config { command } => match command {
             ConfigCommands::Get { property_path } => {
@@ -405,26 +389,8 @@ fn main() {
                 config.reset_to_defaults().unwrap_or_else(|e| {
                     fatal_error(&format!("failed to reset config: {:?}", e));
                 });
-                println!("config reset to default values");
             }
         },
-        Commands::MockServer { ip_address } => {
-            let host = if ip_address.is_some() {
-                ip_address.clone().unwrap()
-            } else if !config_mock_server_ip_address.is_empty() {
-                config_mock_server_ip_address.clone()
-            } else {
-                commands::mock_server::DEFAULT_HOST.to_string()
-            };
-
-            let bind_address = format!("{}:{}", host, commands::mock_server::DEFAULT_PORT);
-
-            log::debug!("starting mock server: bind_address={:}", bind_address);
-
-            commands::mock_server::run(&bind_address).unwrap_or_else(|e| {
-                fatal_error(&format!("mock server failed: {:#?}", e));
-            });
-        }
         Commands::Reset { force } => {
             if !force && !confirm_action("Are you sure you want to reset all app data (configs, logs, databases)?") {
                 println!("cancelled reset");

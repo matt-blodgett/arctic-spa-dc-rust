@@ -1,7 +1,7 @@
 use crate::core::discovery;
 
 pub fn discover_devices() -> Vec<String> {
-    println!("searching for devices on the local network...");
+    log::info!("searching for devices on the local network...");
     discovery::search(None, 24, 1000, 100)
 }
 

@@ -276,10 +276,8 @@ impl AppConfigManager {
     pub fn set_path_value(&mut self, path: &str, value: serde_json::Value) -> Result<(), Box<dyn std::error::Error>> {
         let mut json = serde_json::to_value(&self.data)?;
         let default_json = serde_json::to_value(AppConfig::default())?;
-        // let keys: Vec<&str> = path.split('.').collect();
 
         let pointer_path = format!("/{}", path.replace('.', "/"));
-        // println!("pointer_path: {:#?}", pointer_path);
 
         let current_value = json
             .pointer(&pointer_path)
@@ -430,7 +428,7 @@ impl AppConfigManager {
     pub fn reset_to_defaults(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.data = AppConfig::default();
         self.save()?;
-        log::trace!("config file reset to default values");
+        log::warn!("config file reset to default values");
         Ok(())
     }
 }

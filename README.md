@@ -120,6 +120,9 @@ asdc query onzen-live --ip-address "192.168.0.1" --log-level trace
 
 # append logs to a file for this run
 asdc query live --log-file-path "./logs/asdc.log"
+
+# get data in json format
+asdc query settings --output-format "json"
 ```
 
 ### Poll
@@ -136,7 +139,27 @@ Poll hot tub data in a timed, continuous loop.
 asdc poll
 
 # start polling using the locally running mock server
-asdc poll --mock-server-mode
+asdc poll --mock-server
+```
+
+### MockServer
+
+Run a mock TCP server that simulates sending and receiving the same requests and responses that an actual hot tub would. This is great for prototyping and sandboxing.
+
+**Examples:**
+```bash
+# start the tcp server on localhost
+asdc mock-server --ip-address "127.0.0.1"
+
+# in a new terminal, connect to the mock server
+asdc query live --mock-server
+
+# set configs for easier testing
+asdc config set mock_server.enabled true
+asdc config set mock-server-ip-address "127.0.0.2"
+
+# this will now try to connect to the locally running mock server @ "127.0.0.2"
+asdc query live
 ```
 
 ### Config
@@ -152,7 +175,7 @@ Properties are set using Json paths
 asdc config set logging.level debug
 
 # persist logging output to a file path (used when --log-file-path is not provided)
-asdc config set logging.file_path "./logs/asdc.log"
+asdc config set logging.path "./logs/asdc.log"
 
 # turn on mock_server mode if running mock server in another terminal
 asdc config set mock_server.enabled true
@@ -164,26 +187,6 @@ asdc config list
 asdc config reset
 ```
 
-### MockServer
-
-Run a mock TCP server that simulates sending and receiving the same requests and responses that an actual hot tub would.
-This is great for prototyping or sandboxing without worrying about damage to your actual hot tub.
-
-**Examples:**
-```bash
-# start the tcp server on localhost
-asdc start-mock-server --ip-address "127.0.0.1"
-
-# in a new terminal, connect to the mock server
-asdc query live --mock-server-mode
-
-# set configs for easier testing
-asdc config set mock-server-mode 1
-asdc config set mock-server-ip-address "127.0.0.2"
-
-# this will now try to connect to the locally running mock server @ "127.0.0.2"
-asdc query live
-```
 
 ### Reset
 
@@ -202,7 +205,7 @@ asdc reset --force
 asdc discover
 
 # save your hot tubs ip address to avoid repetitive command line flags
-asdc config set ip-address 192.168.1.100
+asdc config set ip_address 192.168.1.100
 
 # check current temperature and setpoint
 asdc device get temperature-current
@@ -215,7 +218,7 @@ asdc device set temperature-setpoint 100
 asdc device set all-on ON
 
 # view all logging output
-asdc config set log-level trace
+asdc config set logging.level trace
 
 # query full device status
 asdc query live
