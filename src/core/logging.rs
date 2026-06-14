@@ -103,26 +103,26 @@ pub fn init_logging(log_level: LogLevel, log_file_path: Option<&Path>) -> Result
             //     record.args()
             // )
 
-            // FILES AND LINES
-            writeln!(
-                buf,
-                "[{} | {:<5} | {}:{}] {}",
-                buf.timestamp(),
-                record.level().to_string(),
-                record.file().unwrap_or(""),
-                record.line().unwrap_or(0),
-                record.args()
-            )
-
-            // MODULES
+            // // FILES AND LINES
             // writeln!(
             //     buf,
-            //     "[{} | {:<5} | {:}] {}",
+            //     "[{} | {:<5} | {}:{}] {}",
             //     buf.timestamp(),
             //     record.level().to_string(),
-            //     record.module_path().unwrap_or(""),
+            //     record.file().unwrap_or(""),
+            //     record.line().unwrap_or(0),
             //     record.args()
             // )
+
+            // MODULES
+            writeln!(
+                buf,
+                "[{} | {:<5} | {:}] {}",
+                buf.timestamp(),
+                record.level().to_string(),
+                record.module_path().unwrap_or(""),
+                record.args()
+            )
         })
         .filter_level(level_filter)
         .init();
