@@ -119,7 +119,7 @@ Request protobuf messages from the device. Returns information about device stat
 asdc query onzen-live --ip-address "192.168.0.1" --log-level trace
 
 # append logs to a file for this run
-asdc query live --log-file-path "./logs/asdc.log"
+asdc query live --log-path "./logs/asdc.log"
 
 # get data in json format
 asdc query settings --output-format "json"
@@ -156,7 +156,7 @@ asdc query live --mock-server
 
 # set configs for easier testing
 asdc config set mock_server.enabled true
-asdc config set mock-server-ip-address "127.0.0.2"
+asdc config set mock_server.ip_address "127.0.0.2"
 
 # this will now try to connect to the locally running mock server @ "127.0.0.2"
 asdc query live
