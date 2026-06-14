@@ -416,7 +416,7 @@ impl AppConfigManager {
         Ok(config_manager)
     }
 
-    pub fn save(&self) -> Result<(), std::io::Error> {
+    pub fn save(&self) -> Result<(), Box<dyn std::error::Error>> {
         let file = std::fs::File::create(&self.path)?;
         serde_json::to_writer_pretty(file, &self.data)?;
         log::trace!("config saved to {:#?}", self.path.display());

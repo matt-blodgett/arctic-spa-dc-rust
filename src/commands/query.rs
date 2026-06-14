@@ -474,14 +474,14 @@ fn get_message_formatted_json(message: &ProtoMessage) -> String {
 pub fn display_message(
     message_type: &MessageType,
     message: &ProtoMessage,
+    output_format: Option<&QueryOutputFormat>,
     output_path: Option<&Path>,
-    output_format: QueryOutputFormat,
 ) -> () {
     log::info!("outputting message data");
 
     let output_string = match output_format {
-        QueryOutputFormat::PlainText => get_message_formatted_plain_text(message),
-        QueryOutputFormat::Json => get_message_formatted_json(message),
+        Some(QueryOutputFormat::PlainText) | None => get_message_formatted_plain_text(message),
+        Some(QueryOutputFormat::Json) => get_message_formatted_json(message),
     };
 
     let received_at = message.received_at_formatted(None);
@@ -499,7 +499,7 @@ pub fn display_message(
             }
         }
         None => match output_format {
-            QueryOutputFormat::PlainText => {
+            Some(QueryOutputFormat::PlainText) | None => {
                 println!("message type: \"{:#?}\"", message_type);
                 println!("received at: {:?}", received_at);
                 for line in output_string.split('\n') {
@@ -508,7 +508,7 @@ pub fn display_message(
                     }
                 }
             }
-            QueryOutputFormat::Json => {
+            Some(QueryOutputFormat::Json) => {
                 println!("{}", output_string);
                 return;
             }

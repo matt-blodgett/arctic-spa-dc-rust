@@ -593,14 +593,14 @@ fn checksum_for_packet(data: &[u8]) -> [u8; 4] {
     CRC32.checksum(data).to_be_bytes()
 }
 
-fn packet_bytes(message_type: MessageType, payload: Vec<u8>) -> Vec<u8> {
+fn packet_bytes(message_type: &MessageType, payload: &Vec<u8>) -> Vec<u8> {
     let mut packet = Vec::with_capacity(HEADER_SIZE + payload.len());
 
     packet.extend_from_slice(&HEADER_PREAMBLE);
     packet.extend_from_slice(&0u32.to_be_bytes());
     packet.extend_from_slice(&0u32.to_be_bytes());
     packet.extend_from_slice(&0u32.to_be_bytes());
-    packet.extend_from_slice(&u16::from(message_type).to_be_bytes());
+    packet.extend_from_slice(&u16::from(*message_type).to_be_bytes());
     packet.extend_from_slice(&(payload.len() as u16).to_be_bytes());
     packet.extend_from_slice(&payload);
 
@@ -636,12 +636,12 @@ fn read_packet(stream: &mut TcpStream) -> Result<(MessageType, Vec<u8>), Error> 
     Ok((message_type, payload))
 }
 
-fn write_packet(stream: &mut TcpStream, message_type: MessageType, payload: Vec<u8>) -> Result<(), Error> {
+fn write_packet(stream: &mut TcpStream, message_type: &MessageType, payload: &Vec<u8>) -> Result<(), Error> {
     let bytes = packet_bytes(message_type, payload);
     stream.write_all(&bytes)?;
     log::info!(
         "sent packet: message_type_value={:?}, message_type={:?}, payload_size={}",
-        u16::from(message_type),
+        u16::from(*message_type),
         message_type,
         bytes.len() - HEADER_SIZE
     );
@@ -701,7 +701,7 @@ fn handle_client(mut stream: TcpStream, state: Arc<Mutex<MockState>>) -> Result<
             for (response_type, response_payload) in responses_to_send {
                 // only send responses with data or Heartbeats
                 if !response_payload.is_empty() || response_type == MessageType::Heartbeat {
-                    write_packet(&mut stream, response_type, response_payload)?;
+                    write_packet(&mut stream, &response_type, &response_payload)?;
                 }
             }
             continue;

@@ -139,7 +139,7 @@ enum ConfigCommands {
     Reset {},
 }
 
-fn fatal_error_and_exit(message: &str) -> ! {
+fn fatal_error(message: &str) -> ! {
     log::error!("{}", message);
     eprintln!("{}", message);
     std::process::exit(1);
@@ -147,19 +147,19 @@ fn fatal_error_and_exit(message: &str) -> ! {
 
 fn assert_ip_address(ip_address: &str) {
     if ip_address.is_empty() {
-        fatal_error_and_exit("no ip address specified; aborting");
+        fatal_error("no ip address specified; aborting");
     }
 }
 
 fn confirm_action(prompt: &str) -> bool {
     print!("{} [y/N]: ", prompt);
     io::stdout().flush().unwrap_or_else(|e| {
-        fatal_error_and_exit(&format!("failed to flush stdout for confirmation prompt: {}", e));
+        fatal_error(&format!("failed to flush stdout for confirmation prompt: {}", e));
     });
 
     let mut input = String::new();
     io::stdin().read_line(&mut input).unwrap_or_else(|e| {
-        fatal_error_and_exit(&format!("failed to read confirmation input: {}", e));
+        fatal_error(&format!("failed to read confirmation input: {}", e));
     });
 
     matches!(input.trim().to_ascii_lowercase().as_str(), "y" | "yes")
@@ -173,11 +173,11 @@ fn main() {
     let mut config = if let Some(path) = cli.config_path.as_ref() {
         log::debug!("config_path={}", path.display());
         core::config::AppConfigManager::load_from_path(path).unwrap_or_else(|e| {
-            fatal_error_and_exit(&format!("failed to load config from specified path: {}", e));
+            fatal_error(&format!("failed to load config from specified path: {}", e));
         })
     } else {
         core::config::AppConfigManager::load_or_create().unwrap_or_else(|e| {
-            fatal_error_and_exit(&format!("failed to load or create config: {}", e));
+            fatal_error(&format!("failed to load or create config: {}", e));
         })
     };
 
@@ -208,7 +208,7 @@ fn main() {
     let log_path = cli.log_path.or(config_log_path);
 
     core::logging::init_logging(log_level, log_path.as_deref()).unwrap_or_else(|e| {
-        fatal_error_and_exit(&format!("failed to initialize logging: {}", e));
+        fatal_error(&format!("failed to initialize logging: {}", e));
     });
     log::debug!(
         "logging initialized: level={}, file_path={}",
@@ -312,7 +312,7 @@ fn main() {
                     config
                         .set_path_value("ip_address", serde_json::Value::String(first_device_ip.clone()))
                         .unwrap_or_else(|e| {
-                            fatal_error_and_exit(&format!("failed to set config: {:?}", e));
+                            fatal_error(&format!("failed to set config: {:?}", e));
                         });
                     log::info!("config updated successfully");
                     println!("config updated successfully");
@@ -326,20 +326,20 @@ fn main() {
                 DeviceCommands::Get { property_name } => {
                     let value =
                         commands::device::get_device_property_value(&ip_address, property_name).unwrap_or_else(|e| {
-                            fatal_error_and_exit(&format!("failed to get device property value: {:?}", e));
+                            fatal_error(&format!("failed to get device property value: {:?}", e));
                         });
                     commands::device::display_device_property_value(property_name, &value);
                 }
                 DeviceCommands::Set { property_name, value } => {
                     commands::device::set_device_property_value(&ip_address, property_name, value).unwrap_or_else(
                         |e| {
-                            fatal_error_and_exit(&format!("failed to set device property value: {:?}", e));
+                            fatal_error(&format!("failed to set device property value: {:?}", e));
                         },
                     );
                 }
                 DeviceCommands::List {} => {
                     commands::device::get_and_display_all_device_properties(&ip_address).unwrap_or_else(|e| {
-                        fatal_error_and_exit(&format!("failed to display all device properties: {:?}", e));
+                        fatal_error(&format!("failed to display all device properties: {:?}", e));
                     });
                 }
             }
@@ -353,13 +353,13 @@ fn main() {
 
             let message_type: core::net::MessageType = (*message_name).into();
             let proto_message = commands::query::get_message(&ip_address, &message_type).unwrap_or_else(|e| {
-                fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
+                fatal_error(&format!("command execution failed: {:#?}", e));
             });
             commands::query::display_message(
                 &message_type,
                 &proto_message,
+                output_format.as_ref(),
                 output_path.as_deref(),
-                output_format.unwrap_or(QueryOutputFormat::PlainText),
             );
         }
         Commands::Poll {
@@ -370,14 +370,14 @@ fn main() {
 
             commands::poll::poll_device(&ip_address, &config, *reset_database, database_path.as_ref()).unwrap_or_else(
                 |e| {
-                    fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
+                    fatal_error(&format!("command execution failed: {:#?}", e));
                 },
             );
         }
         Commands::Config { command } => match command {
             ConfigCommands::Get { property_path } => {
                 let value = config.get_path_value(property_path).unwrap_or_else(|| {
-                    fatal_error_and_exit(&format!("no config value found for path {:?}", property_path));
+                    fatal_error(&format!("no config value found for path {:?}", property_path));
                 });
                 println!("got config value -> {:?} = {:?}", property_path, value);
             }
@@ -385,13 +385,13 @@ fn main() {
                 config
                     .set_path_value(property_path, value.clone().into())
                     .unwrap_or_else(|e| {
-                        fatal_error_and_exit(&format!("failed to set config {:?}: {:?}", property_path, e));
+                        fatal_error(&format!("failed to set config {:?}: {:?}", property_path, e));
                     });
                 println!("set config value -> {:?} = {:?}", property_path, value);
             }
             ConfigCommands::List {} => {
                 let config_json_string = config.to_string_pretty().unwrap_or_else(|e| {
-                    fatal_error_and_exit(&format!("failed to display config: {:?}", e));
+                    fatal_error(&format!("failed to display config: {:?}", e));
                 });
                 println!("displaying all config properties");
                 println!("{}", config_json_string);
@@ -403,7 +403,7 @@ fn main() {
                 }
 
                 config.reset_to_defaults().unwrap_or_else(|e| {
-                    fatal_error_and_exit(&format!("failed to reset config: {:?}", e));
+                    fatal_error(&format!("failed to reset config: {:?}", e));
                 });
                 println!("config reset to default values");
             }
@@ -422,7 +422,7 @@ fn main() {
             log::debug!("starting mock server: bind_address={:}", bind_address);
 
             commands::mock_server::run(&bind_address).unwrap_or_else(|e| {
-                fatal_error_and_exit(&format!("mock server failed: {:#?}", e));
+                fatal_error(&format!("mock server failed: {:#?}", e));
             });
         }
         Commands::Reset { force } => {
@@ -432,7 +432,7 @@ fn main() {
             }
 
             commands::reset::reset_all(&mut config).unwrap_or_else(|e| {
-                fatal_error_and_exit(&format!("failed to reset app state: {:?}", e));
+                fatal_error(&format!("failed to reset app state: {:?}", e));
             });
         }
     }
