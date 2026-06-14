@@ -10,7 +10,7 @@ mod core;
 mod proto;
 
 use commands::device::{DevicePropertyNameGet, DevicePropertyNameSet};
-use commands::query::QueryMessageName;
+use commands::query::{QueryMessageName, QueryOutputFormat};
 
 #[derive(Parser)]
 #[command(name = "asdc")]
@@ -59,6 +59,10 @@ enum Commands {
         /// Message type to query
         #[arg(value_enum)]
         message_name: QueryMessageName,
+
+        /// Optional output format for displaying the message data (defaults to plain text)
+        #[arg(long, value_enum)]
+        output_format: Option<QueryOutputFormat>,
 
         /// Optional output file path to write the message data to; if not specified, will print to stdout
         #[arg(short, long, value_name = "OUTPUT_FILE_PATH")]
@@ -342,6 +346,7 @@ fn main() {
         }
         Commands::Query {
             message_name,
+            output_format,
             output_path,
         } => {
             assert_ip_address(&ip_address);
@@ -350,7 +355,12 @@ fn main() {
             let proto_message = commands::query::get_message(&ip_address, &message_type).unwrap_or_else(|e| {
                 fatal_error_and_exit(&format!("command execution failed: {:#?}", e));
             });
-            commands::query::display_message(&message_type, &proto_message, output_path.as_deref());
+            commands::query::display_message(
+                &message_type,
+                &proto_message,
+                output_path.as_deref(),
+                output_format.unwrap_or(QueryOutputFormat::PlainText),
+            );
         }
         Commands::Poll {
             reset_database,
